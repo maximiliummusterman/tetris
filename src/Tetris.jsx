@@ -451,7 +451,6 @@ export default function Tetris() {
               >
                 ←
               </IconButton>
-            
               <IconButton
                 label="Move Right"
                 onDown={() => startHold(1)}
@@ -460,18 +459,9 @@ export default function Tetris() {
               >
                 →
               </IconButton>
-            
-              {/* Make Rotate bigger by spanning two columns */}
-              <div style={{ gridColumn: "span 2" }}>
-                <IconButton
-                  label="Rotate"
-                  onDown={rotatePiece}
-                  style={{ padding: "12px 16px", fontSize: "1.5rem" }}
-                >
-                  ⟳
-                </IconButton>
-              </div>
-            
+              <IconButton label="Rotate" onDown={rotatePiece}>
+                ⟳
+              </IconButton>
               <IconButton
                 label="Soft Drop"
                 onDown={() => setSoftDropping(true)}
@@ -480,7 +470,6 @@ export default function Tetris() {
               >
                 ↓
               </IconButton>
-            
               <IconButton label="Hard Drop" onDown={hardDrop}>
                 ⤓
               </IconButton>
