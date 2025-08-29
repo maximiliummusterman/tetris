@@ -125,18 +125,14 @@ export default function Tetris() {
     return newBoard;
   };
 
-  const spawnNextPiece = useCallback(() => {
-    if (!gameOver) setPiece(nextPiece);
-    setNextPiece(randomPiece());
-  }, [nextPiece, gameOver]);
-
   const drop = useCallback(() => {
-    setPiece((prevPiece) => {
-      if (gameOver) return prevPiece;
+    if (gameOver) return;
 
+    setPiece((prevPiece) => {
+      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
       let collided = false;
+
       setBoard((prevBoard) => {
-        const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
         if (collides(newPiece, prevBoard)) {
           collided = true;
           const merged = merge(prevPiece, prevBoard);
@@ -147,14 +143,16 @@ export default function Tetris() {
         return prevBoard;
       });
 
-      if (collided) {
-        spawnNextPiece(); // only spawns if game not over
-        return prevPiece;
-      } else {
-        return { ...prevPiece, y: prevPiece.y + 1 };
+      // Only spawn next piece if not game over and collided
+      if (collided && !gameOver) {
+        setPiece(nextPiece);
+        setNextPiece(randomPiece());
+        return nextPiece;
       }
+
+      return collided ? prevPiece : newPiece;
     });
-  }, [board, spawnNextPiece, gameOver]);
+  }, [nextPiece, gameOver]);
 
   // Auto drop interval
   useEffect(() => {
@@ -182,7 +180,10 @@ export default function Tetris() {
       let newPiece = { ...prev };
       while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
       setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
-      spawnNextPiece();
+      if (!gameOver) {
+        setPiece(nextPiece);
+        setNextPiece(randomPiece());
+      }
       return newPiece;
     });
   };
