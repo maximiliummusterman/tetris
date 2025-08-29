@@ -61,6 +61,7 @@ export default function Tetris() {
   const autoDropRef = useRef(null);
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
+  const landingRef = useRef(false); // fixes hold left/right issue
 
   const noHighlightStyle = {
     userSelect: "none",
@@ -132,24 +133,25 @@ export default function Tetris() {
       const nextPos = { ...prevPiece, y: prevPiece.y + 1 };
 
       if (collides(nextPos, board)) {
-        // Merge the piece first
+        landingRef.current = true; // block holds temporarily
+
         setBoard((prevBoard) => {
           const merged = merge(prevPiece, prevBoard);
-          const cleared = clearLines(merged);
-          return cleared;
+          return clearLines(merged);
         });
 
-        // Game over if collision at top
         if (prevPiece.y === 0) {
           clearInterval(autoDropRef.current);
           setGameOver(true);
         } else {
-          // Spawn next piece in separate state update
+          // Spawn next piece
           setPiece(nextPiece);
           setNextPiece(randomPiece());
         }
 
-        return prevPiece; // keep piece temporarily so board render is stable
+        setTimeout(() => (landingRef.current = false), 0);
+
+        return prevPiece;
       }
 
       return nextPos;
@@ -162,6 +164,7 @@ export default function Tetris() {
   }, [drop]);
 
   const move = (dx) => {
+    if (landingRef.current) return;
     setPiece((prev) => {
       const newPiece = { ...prev, x: prev.x + dx };
       return collides(newPiece, board) ? prev : newPiece;
@@ -169,6 +172,7 @@ export default function Tetris() {
   };
 
   const rotatePiece = () => {
+    if (landingRef.current) return;
     setPiece((prev) => {
       const rotated = prev.shape[0].map((_, i) => prev.shape.map((row) => row[i]).reverse());
       const newPiece = { ...prev, shape: rotated };
@@ -205,7 +209,9 @@ export default function Tetris() {
   const startHold = (dir) => {
     if (holdRefs.current[dir]) return;
     move(dir);
-    holdRefs.current[dir] = setInterval(() => move(dir), 150);
+    holdRefs.current[dir] = setInterval(() => {
+      if (!landingRef.current) move(dir);
+    }, 150);
   };
   const stopHold = (dir) => {
     clearInterval(holdRefs.current[dir]);
