@@ -352,34 +352,62 @@ export default function Tetris() {
           >
             <button
               style={buttonStyle}
-              onPointerDown={() => startHold(-1)}
-              onPointerUp={() => stopHold(-1)}
-              onPointerLeave={() => stopHold(-1)}
+              onMouseDown={() => startHold(-1)}
+              onMouseUp={() => stopHold(-1)}
+              onMouseLeave={() => stopHold(-1)}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                startHold(-1);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                stopHold(-1);
+              }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ←
             </button>
             <button
               style={buttonStyle}
-              onPointerDown={() => startHold(1)}
-              onPointerUp={() => stopHold(1)}
-              onPointerLeave={() => stopHold(1)}
+              onMouseDown={() => startHold(1)}
+              onMouseUp={() => stopHold(1)}
+              onMouseLeave={() => stopHold(1)}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                startHold(1);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                stopHold(1);
+              }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               →
             </button>
             <button
               style={buttonStyle}
-              onPointerDown={rotatePiece}
+              onMouseDown={rotatePiece}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                rotatePiece();
+              }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↺
             </button>
             <button
               style={buttonStyle}
-              onPointerDown={() => setSoftDropping(true)}
-              onPointerUp={() => setSoftDropping(false)}
-              onPointerLeave={() => setSoftDropping(false)}
+              onMouseDown={() => setSoftDropping(true)}
+              onMouseUp={() => setSoftDropping(false)}
+              onMouseLeave={() => setSoftDropping(false)}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                setSoftDropping(true);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                setSoftDropping(false);
+              }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↓
