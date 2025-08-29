@@ -56,12 +56,13 @@ export default function Tetris() {
   const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [locked, setLocked] = useState(false); // soft-drop lock flag
   const dropInterval = useRef(null);
   const holdRefs = useRef({});
   const SOFT_DROP_INTERVAL = 50;
   const [blockSize, setBlockSize] = useState(30);
 
-  // Disable page scrolling and fix block size
+  // Disable scrolling & fix block size
   useEffect(() => {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -127,9 +128,10 @@ export default function Tetris() {
   const spawnNextPiece = useCallback(() => {
     setPiece(nextPiece);
     setNextPiece(randomPiece());
+    setLocked(false); // reset lock for new piece
   }, [nextPiece]);
 
-  // Automatic drop interval (merges & spawns next piece)
+  // Automatic drop interval (handles merge & next piece)
   const drop = useCallback(() => {
     setPiece((prevPiece) => {
       if (gameOver) return prevPiece;
@@ -149,14 +151,17 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
-  // Soft drop for holding button (does not merge)
+  // Soft drop for hold button
   const softDrop = () => {
+    if (locked || gameOver) return;
     setPiece((prevPiece) => {
       const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
       if (!collides(newPiece, board)) {
         return newPiece;
+      } else {
+        setLocked(true); // lock piece until next piece is spawned
+        return prevPiece;
       }
-      return prevPiece; // do not merge
     });
   };
 
