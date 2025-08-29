@@ -87,7 +87,6 @@ export default function Tetris() {
     caretColor: "transparent",
   };
 
-  // Reset game
   const resetGame = () => {
     setBoard(Array.from({ length: ROWS }, () => Array(COLS).fill(null)));
     setPiece(randomPiece());
@@ -97,7 +96,6 @@ export default function Tetris() {
     setPaused(false);
   };
 
-  // Block sizing
   const recalcBlockSize = useCallback(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -134,7 +132,6 @@ export default function Tetris() {
     return copy;
   };
 
-  // enhanced scoring
   const clearLines = (brd) => {
     let cleared = 0;
     const newBoard = brd.filter((row) => {
@@ -152,7 +149,6 @@ export default function Tetris() {
     return newBoard;
   };
 
-  // Drop function
   const drop = useCallback(() => {
     if (gameOver || paused) return;
     setPiece((prev) => {
@@ -182,7 +178,6 @@ export default function Tetris() {
     });
   }, [board, nextPiece, gameOver, paused]);
 
-  // Auto drop speed based on score
   const getDropInterval = () => {
     let interval = 600;
     if (score >= 5000) interval = 550;
@@ -200,7 +195,6 @@ export default function Tetris() {
     return () => clearInterval(autoDropRef.current);
   }, [softDropping, drop, paused, score]);
 
-  // Soft drop loop
   useEffect(() => {
     if (!softDropping || gameOver || paused) return;
     let t;
@@ -249,7 +243,6 @@ export default function Tetris() {
     });
   };
 
-  // Hold movement
   const startHold = (dir) => {
     if (holdRefs.current[dir]) return;
     move(dir);
@@ -262,7 +255,6 @@ export default function Tetris() {
     }
   };
 
-  // Ghost piece
   const ghostPiece = (() => {
     let ghost = { ...piece };
     while (!collides({ ...ghost, y: ghost.y + 1 }, board)) {
@@ -271,7 +263,6 @@ export default function Tetris() {
     return ghost;
   })();
 
-  // Keyboard
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver || paused) return;
@@ -285,7 +276,6 @@ export default function Tetris() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [drop, gameOver, paused]);
 
-  // Display board with ghost
   const displayBoard = board.map((row) => [...row]);
   ghostPiece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -310,7 +300,6 @@ export default function Tetris() {
     })
   );
 
-  // Next piece preview
   const getNextGrid = () => {
     const grid = Array.from({ length: NEXT_GRID_SIZE }, () =>
       Array(NEXT_GRID_SIZE).fill(null)
@@ -329,8 +318,7 @@ export default function Tetris() {
     return grid;
   };
 
-  // Mobile buttons
-  const IconButton = ({ onDown, onUp, onLeave, label, children }) => (
+  const IconButton = ({ onDown, onUp, onLeave, label, children, style }) => (
     <button
       aria-label={label}
       role="button"
@@ -348,7 +336,7 @@ export default function Tetris() {
       }}
       onContextMenu={(e) => e.preventDefault()}
       className="px-4 py-3 bg-gray-700 rounded-lg text-white text-xl flex items-center justify-center"
-      style={{ ...noHighlightStyle, touchAction: "none" }}
+      style={{ ...noHighlightStyle, touchAction: "none", ...style }}
     >
       {children}
     </button>
@@ -438,41 +426,31 @@ export default function Tetris() {
             <div
               className="grid gap-2 mt-4"
               style={{
-                gridTemplateColumns: "repeat(2, auto)",
+                gridTemplateColumns: "repeat(3, auto)",
                 justifyContent: "center",
                 alignItems: "center",
               }}
             >
+              <IconButton onDown={() => startHold(-1)} onUp={() => stopHold(-1)}>←</IconButton>
+              <IconButton onDown={() => startHold(1)} onUp={() => stopHold(1)}>→</IconButton>
+
+              {/* Rotate button spanning all columns */}
               <IconButton
-                label="Move Left"
-                onDown={() => startHold(-1)}
-                onUp={() => stopHold(-1)}
-                onLeave={() => stopHold(-1)}
+                onDown={rotatePiece}
+                style={{ gridColumn: "span 3", padding: "16px 20px", fontSize: "1.75rem" }}
               >
-                ←
-              </IconButton>
-              <IconButton
-                label="Move Right"
-                onDown={() => startHold(1)}
-                onUp={() => stopHold(1)}
-                onLeave={() => stopHold(1)}
-              >
-                →
-              </IconButton>
-              <IconButton label="Rotate" onDown={rotatePiece}>
                 ⟳
               </IconButton>
+
               <IconButton
-                label="Soft Drop"
                 onDown={() => setSoftDropping(true)}
                 onUp={() => setSoftDropping(false)}
                 onLeave={() => setSoftDropping(false)}
               >
                 ↓
               </IconButton>
-              <IconButton label="Hard Drop" onDown={hardDrop}>
-                ⤓
-              </IconButton>
+
+              <IconButton onDown={hardDrop}>⤓</IconButton>
             </div>
           </div>
         </div>
