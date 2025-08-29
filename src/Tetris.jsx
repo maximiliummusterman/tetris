@@ -473,7 +473,7 @@ export default function Tetris() {
                   left: 0,
                   width: "100%",
                   height: "100%",
-                  backgroundColor: "rgba(200,200,200,10)", // dim effect
+                  backgroundColor: "rgba(0,0,0,0.9)", // dim effect
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
