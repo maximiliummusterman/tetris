@@ -61,6 +61,7 @@ export default function Tetris() {
   const autoDropRef = useRef(null);
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
+  const touchStartRef = useRef({ x: 0, y: 0 });
 
   // Prevent scrolling & calculate block size
   useEffect(() => {
@@ -172,7 +173,7 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop with mobile-friendly loop
+  // Soft drop mobile-friendly loop
   useEffect(() => {
     if (!softDropping) return;
     let frame;
@@ -209,6 +210,36 @@ export default function Tetris() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [drop, gameOver]);
 
+  // Touch gesture controls
+  const handlePointerDown = (e) => {
+    e.preventDefault();
+    const touch = e.touches ? e.touches[0] : e;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handlePointerUp = (e) => {
+    const touch = e.changedTouches ? e.changedTouches[0] : e;
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const threshold = 20;
+
+    if (absX < threshold && absY < threshold) {
+      rotatePiece(); // tap
+      return;
+    }
+
+    if (absX > absY) {
+      if (dx > 0) move(1);
+      else move(-1);
+    } else {
+      if (dy > 0) setSoftDropping(true);
+    }
+  };
+
+  const handlePointerCancel = () => setSoftDropping(false);
+
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -225,8 +256,14 @@ export default function Tetris() {
 
   return (
     <div
-      className="flex flex-col items-center justify-center text-white bg-gray-900 px-2"
+      className="flex flex-col items-center justify-center text-white bg-gray-900 px-2 relative"
       style={{ height: "100vh", overflow: "hidden", touchAction: "none" }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerCancel}
+      onTouchStart={handlePointerDown}
+      onTouchEnd={handlePointerUp}
+      onTouchCancel={handlePointerCancel}
     >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
