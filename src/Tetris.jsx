@@ -56,55 +56,65 @@ export default function Tetris() {
   const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  const [blockSize, setBlockSize] = useState(28); // responsive size
+  const [blockSize, setBlockSize] = useState(24); // auto-sized below
 
   const autoDropRef = useRef(null);
-  const holdRefs = useRef({});
+  const holdRefs = useRef({}); // {-1: intervalId, 1: intervalId}
   const [softDropping, setSoftDropping] = useState(false);
-  const landingRef = useRef(false); // blocks inputs while landing/ spawning
-
-  // Make everything non-selectable/non-highlightable, prevent scroll/overscroll
+  const landingRef = useRef(false); // block inputs during landing/ spawn
+  const boardRef = useRef(board);
   useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    root.style.overflow = "hidden";
-    body.style.overflow = "hidden";
-    root.style.height = "100%";
-    body.style.height = "100%";
-    root.style.overscrollBehavior = "none";
-    body.style.overscrollBehavior = "none";
+    boardRef.current = board;
+  }, [board]);
+
+  const noHighlightStyle = {
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    WebkitTouchCallout: "none",
+    MozUserSelect: "none",
+    msUserSelect: "none",
+    caretColor: "transparent",
+  };
+
+  // Prevent scrolling & center with small viewport height on iOS
+  useEffect(() => {
+    const elHtml = document.documentElement;
+    const elBody = document.body;
+    elHtml.style.overflow = "hidden";
+    elBody.style.overflow = "hidden";
+    elHtml.style.height = "100%";
+    elBody.style.height = "100%";
+    elHtml.style.overscrollBehavior = "none";
+    elBody.style.overscrollBehavior = "none";
 
     return () => {
-      root.style.overflow = "";
-      body.style.overflow = "";
-      root.style.height = "";
-      body.style.height = "";
-      root.style.overscrollBehavior = "";
-      body.style.overscrollBehavior = "";
+      elHtml.style.overflow = "";
+      elBody.style.overflow = "";
+      elHtml.style.height = "";
+      elBody.style.height = "";
+      elHtml.style.overscrollBehavior = "";
+      elBody.style.overscrollBehavior = "";
     };
   }, []);
 
-  // Responsive block size based on viewport and reserved right panel
-  useEffect(() => {
-    const computeSize = () => {
-      const svh = Math.max(window.innerHeight, 0); // use 100svh fallback
-      const vw = Math.max(window.innerWidth, 0);
-      const rightPanelMinWidth = 160; // next grid + buttons min width
-      const padding = 24;
-
-      const hSize = Math.floor((svh - padding) / ROWS);
-      const wSize = Math.floor((vw - rightPanelMinWidth - padding) / COLS);
-      const size = Math.max(16, Math.min(hSize, wSize, 32));
-      setBlockSize(size);
-    };
-    computeSize();
-    window.addEventListener("resize", computeSize);
-    window.addEventListener("orientationchange", computeSize);
-    return () => {
-      window.removeEventListener("resize", computeSize);
-      window.removeEventListener("orientationchange", computeSize);
-    };
+  // Auto-calc block size so the whole layout fits and stays centered
+  const recalcBlockSize = useCallback(() => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Horizontal fit: board (COLS) + gap columns (~2) + next grid (4)
+    const sizeByWidth = Math.floor(vw / (COLS + NEXT_GRID_SIZE + 2));
+    // Vertical fit: rows
+    const sizeByHeight = Math.floor(vh / (ROWS + 4)); // + a little headroom for title/buttons
+    const size = Math.max(14, Math.min(30, sizeByWidth, sizeByHeight));
+    setBlockSize(size);
   }, []);
+
+  useEffect(() => {
+    recalcBlockSize();
+    window.addEventListener("resize", recalcBlockSize);
+    return () => window.removeEventListener("resize", recalcBlockSize);
+  }, [recalcBlockSize]);
 
   const collides = (p, brd) =>
     p.shape.some((row, dy) =>
@@ -142,7 +152,7 @@ export default function Tetris() {
     return newBoard;
   };
 
-  // DROP (stable: merge first, spawn next after, block inputs during landing)
+  // Drop with landing guard; spawn next piece after board update; never black screen
   const drop = useCallback(() => {
     if (gameOver) return;
 
@@ -150,25 +160,37 @@ export default function Tetris() {
       const nextPos = { ...prev, y: prev.y + 1 };
 
       if (collides(nextPos, board)) {
-        // Landing: block input
         landingRef.current = true;
 
-        // Merge first so board is always visible; then maybe game over or spawn next
-        setBoard((prevBoard) => clearLines(merge(prev, prevBoard)));
+        // Merge current piece into the board first
+        setBoard((prevBoard) => {
+          const merged = merge(prev, prevBoard);
+          return clearLines(merged);
+        });
 
+        // If stuck at top, game over
         if (prev.y === 0) {
-          // Game over at top collision
           clearInterval(autoDropRef.current);
           setGameOver(true);
-          landingRef.current = false; // unblock to allow UI buttons, though game over
-        } else {
-          // Spawn next piece on a separate tick
+          // let the merged piece remain visible
           setTimeout(() => {
-            setPiece(nextPiece);
-            setNextPiece(randomPiece());
-            landingRef.current = false; // allow inputs again
+            landingRef.current = false;
           }, 0);
+          return prev;
         }
+
+        // Spawn next piece in a separate tick; also guard against immediate game over
+        setTimeout(() => {
+          if (gameOver) return;
+          // If next piece immediately collides with current board, it's game over
+          if (collides(nextPiece, boardRef.current)) {
+            setGameOver(true);
+            return;
+          }
+          setPiece(nextPiece);
+          setNextPiece(randomPiece());
+          landingRef.current = false;
+        }, 0);
 
         return prev;
       }
@@ -179,12 +201,12 @@ export default function Tetris() {
 
   // Auto drop interval
   useEffect(() => {
-    autoDropRef.current = setInterval(drop, 600); // 600ms as requested
+    autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
   }, [drop]);
 
   const move = (dx) => {
-    if (landingRef.current) return;
+    if (gameOver || landingRef.current) return;
     setPiece((prev) => {
       const newPiece = { ...prev, x: prev.x + dx };
       return collides(newPiece, board) ? prev : newPiece;
@@ -192,7 +214,7 @@ export default function Tetris() {
   };
 
   const rotatePiece = () => {
-    if (landingRef.current) return;
+    if (gameOver || landingRef.current) return;
     setPiece((prev) => {
       const rotated = prev.shape[0].map((_, i) =>
         prev.shape.map((row) => row[i]).reverse()
@@ -203,21 +225,27 @@ export default function Tetris() {
   };
 
   const hardDrop = () => {
+    if (gameOver || landingRef.current) return;
     setPiece((prev) => {
-      let np = { ...prev };
-      while (!collides({ ...np, y: np.y + 1 }, board)) np.y++;
-      setBoard((prevBoard) => clearLines(merge(np, prevBoard)));
-      if (!gameOver) {
+      let newPiece = { ...prev };
+      while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
+      setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
+      // Spawn next; if it immediately collides, game over
+      setTimeout(() => {
+        if (collides(nextPiece, boardRef.current)) {
+          setGameOver(true);
+          return;
+        }
         setPiece(nextPiece);
         setNextPiece(randomPiece());
-      }
-      return np;
+      }, 0);
+      return newPiece;
     });
   };
 
-  // Soft drop loop while holding the ↓ button
+  // Soft drop loop
   useEffect(() => {
-    if (!softDropping) return;
+    if (!softDropping || gameOver) return;
     let t;
     const loop = () => {
       drop();
@@ -225,22 +253,24 @@ export default function Tetris() {
     };
     loop();
     return () => clearTimeout(t);
-  }, [softDropping, drop]);
+  }, [softDropping, drop, gameOver]);
 
-  // Hold left/right (repeat)
+  // Hold left/right buttons
   const startHold = (dir) => {
     if (holdRefs.current[dir]) return;
     move(dir);
     holdRefs.current[dir] = setInterval(() => move(dir), 130);
   };
   const stopHold = (dir) => {
-    clearInterval(holdRefs.current[dir]);
-    holdRefs.current[dir] = null;
+    if (holdRefs.current[dir]) {
+      clearInterval(holdRefs.current[dir]);
+      holdRefs.current[dir] = null;
+    }
   };
 
-  // Keyboard (PC)
+  // Keyboard controls (PC)
   useEffect(() => {
-    const onKey = (e) => {
+    const handleKey = (e) => {
       if (gameOver) return;
       if (e.key === "ArrowLeft") move(-1);
       if (e.key === "ArrowRight") move(1);
@@ -248,8 +278,8 @@ export default function Tetris() {
       if (e.key === "ArrowUp") rotatePiece();
       if (e.key === " ") hardDrop();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, [drop, gameOver]);
 
   // Render board with active piece
@@ -257,202 +287,214 @@ export default function Tetris() {
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
       if (c && piece.y + dy >= 0) {
-        displayBoard[piece.y + dy][piece.x + dx] = piece.type;
+        const y = piece.y + dy;
+        const x = piece.x + dx;
+        if (displayBoard[y] && displayBoard[y][x] !== undefined) {
+          displayBoard[y][x] = piece.type;
+        }
       }
     })
   );
 
-  // Non-highlight styles for iOS
-  const noHighlightStyle = {
-    userSelect: "none",
-    WebkitUserSelect: "none",
-    WebkitTapHighlightColor: "transparent",
-    WebkitTouchCallout: "none",
-    touchAction: "none",
-  };
+  // Reusable SVG icon button (prevents iOS text selection issues)
+  const IconButton = ({ onDown, onUp, onLeave, label, children }) => (
+    <button
+      aria-label={label}
+      role="button"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onDown && onDown();
+      }}
+      onPointerUp={(e) => {
+        e.preventDefault();
+        onUp && onUp();
+      }}
+      onPointerLeave={(e) => {
+        e.preventDefault();
+        onLeave && onLeave();
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+      className="px-4 py-3 bg-gray-700 rounded-lg text-white text-xl flex items-center justify-center"
+      style={{ ...noHighlightStyle, touchAction: "none" }}
+    >
+      {children}
+    </button>
+  );
 
-  // Layout: true vertical center by using a full-viewport grid wrapper
   return (
     <div
+      className="bg-gray-900 text-white"
+      onContextMenu={(e) => e.preventDefault()}
       style={{
         ...noHighlightStyle,
-        height: "100svh",        // fixes iOS browser chrome issues
-        minHeight: "100vh",
+        height: "100svh", // better on iOS Safari than 100vh
         width: "100vw",
-        display: "grid",
-        placeItems: "center",    // perfect center vertically and horizontally
-        backgroundColor: "#111827",
-        color: "#fff",
-        paddingTop: "env(safe-area-inset-top)",
-        paddingBottom: "env(safe-area-inset-bottom)",
         overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      {/* Game area (board + right panel) */}
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {/* Main Board */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
-            gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
-            border: "2px solid #fff",
-            background: "#000",
-          }}
-        >
-          {displayBoard.map((row, y) =>
-            row.map((cell, x) => (
-              <div
-                key={`${y}-${x}`}
-                style={{
-                  width: blockSize,
-                  height: blockSize,
-                  border: "1px solid #333",
-                  backgroundColor: cell ? COLORS[cell] : "#111",
-                }}
-              />
-            ))
-          )}
-        </div>
+      {/* Centered column (title + game area) */}
+      <div className="flex flex-col items-center justify-center">
+        <h1 className="text-3xl font-bold text-center mb-2 mt-0">Tetris</h1>
 
-        {/* Right Panel: fixed width so it never shifts */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            width: Math.max(NEXT_GRID_SIZE * blockSize, 160), // fixed width to avoid reflow
-          }}
-        >
-          <p style={{ margin: "0 0 6px 0", fontSize: 16 }}>Next:</p>
-
-          {/* Next Grid (fixed size, no layout shift) */}
+        <div className="flex flex-row gap-4 items-center justify-center">
+          {/* Main board */}
           <div
+            className="grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
-              gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
-              border: "1px solid #fff",
-              width: NEXT_GRID_SIZE * blockSize,
-              height: NEXT_GRID_SIZE * blockSize,
-              background: "#000",
+              gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
+              gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
+              border: "2px solid white",
             }}
           >
-            {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
-              Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
-                const filled =
-                  nextPiece.shape[y] && nextPiece.shape[y][x] ? 1 : 0;
-                return (
-                  <div
-                    key={`next-${y}-${x}`}
-                    style={{
-                      width: blockSize,
-                      height: blockSize,
-                      border: "1px solid #333",
-                      backgroundColor: filled ? COLORS[nextPiece.type] : "#111",
-                    }}
-                  />
-                );
-              })
+            {displayBoard.map((row, y) =>
+              row.map((cell, x) => (
+                <div
+                  key={`${y}-${x}`}
+                  style={{
+                    width: blockSize,
+                    height: blockSize,
+                    border: "1px solid #333",
+                    backgroundColor: cell ? COLORS[cell] : "#111",
+                  }}
+                />
+              ))
             )}
           </div>
 
-          <p style={{ marginTop: 8, fontSize: 16 }}>Score: {score}</p>
+          {/* Right panel */}
+          <div className="flex flex-col items-center">
+            <p className="text-lg mb-1">Next:</p>
+            <div
+              className="inline-grid border border-white"
+              style={{
+                gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+                gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+                justifyContent: "center",
+                alignContent: "center",
+              }}
+            >
+              {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
+                Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
+                  const cell =
+                    nextPiece.shape[y] && nextPiece.shape[y][x]
+                      ? nextPiece.shape[y][x]
+                      : 0;
+                  return (
+                    <div
+                      key={`next-${y}-${x}`}
+                      style={{
+                        width: blockSize,
+                        height: blockSize,
+                        border: "1px solid #333",
+                        backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
+                      }}
+                    />
+                  );
+                })
+              )}
+            </div>
 
-          {/* 2x2 Buttons */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, auto)",
-              gap: 8,
-              marginTop: 12,
-            }}
-          >
-            <button
+            <p className="mt-2 text-lg">Score: {score}</p>
+
+            {/* 2x2 Buttons under Next */}
+            <div
+              className="grid gap-2 mt-4"
               style={{
-                ...noHighlightStyle,
-                padding: "10px 14px",
-                background: "#374151",
-                borderRadius: 12,
-                fontSize: 20,
-                color: "#fff",
-                border: "none",
+                gridTemplateColumns: "repeat(2, auto)",
+                justifyContent: "center",
+                alignItems: "center",
               }}
-              onPointerDown={() => startHold(-1)}
-              onPointerUp={() => stopHold(-1)}
-              onPointerLeave={() => stopHold(-1)}
-              aria-label="Move Left"
             >
-              ←
-            </button>
-            <button
-              style={{
-                ...noHighlightStyle,
-                padding: "10px 14px",
-                background: "#374151",
-                borderRadius: 12,
-                fontSize: 20,
-                color: "#fff",
-                border: "none",
-              }}
-              onPointerDown={() => startHold(1)}
-              onPointerUp={() => stopHold(1)}
-              onPointerLeave={() => stopHold(1)}
-              aria-label="Move Right"
-            >
-              →
-            </button>
-            <button
-              style={{
-                ...noHighlightStyle,
-                padding: "10px 14px",
-                background: "#374151",
-                borderRadius: 12,
-                fontSize: 20,
-                color: "#fff",
-                border: "none",
-              }}
-              onPointerDown={rotatePiece}
-              aria-label="Rotate"
-            >
-              ↺
-            </button>
-            <button
-              style={{
-                ...noHighlightStyle,
-                padding: "10px 14px",
-                background: "#374151",
-                borderRadius: 12,
-                fontSize: 20,
-                color: "#fff",
-                border: "none",
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                setSoftDropping(true);
-              }}
-              onPointerUp={() => setSoftDropping(false)}
-              onPointerLeave={() => setSoftDropping(false)}
-              aria-label="Soft Drop"
-            >
-              ↓
-            </button>
+              {/* Left */}
+              <IconButton
+                label="Move Left"
+                onDown={() => startHold(-1)}
+                onUp={() => stopHold(-1)}
+                onLeave={() => stopHold(-1)}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                  <path
+                    d="M14 6l-6 6 6 6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </IconButton>
+
+              {/* Right */}
+              <IconButton
+                label="Move Right"
+                onDown={() => startHold(1)}
+                onUp={() => stopHold(1)}
+                onLeave={() => stopHold(1)}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                  <path
+                    d="M10 6l6 6-6 6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </IconButton>
+
+              {/* Rotate */}
+              <IconButton label="Rotate" onDown={rotatePiece}>
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                  <path
+                    d="M4 12a8 8 0 1 1 8 8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M12 4v4H8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </IconButton>
+
+              {/* Soft Drop (hold) */}
+              <IconButton
+                label="Soft Drop"
+                onDown={() => setSoftDropping(true)}
+                onUp={() => setSoftDropping(false)}
+                onLeave={() => setSoftDropping(false)}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                  <path
+                    d="M12 5v14M6 13l6 6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </IconButton>
+            </div>
           </div>
         </div>
-      </div>
 
-      {gameOver && (
-        <p style={{ marginTop: 8, color: "#f87171", fontSize: 18 }}>
-          Game Over! Refresh to restart.
-        </p>
-      )}
+        {gameOver && (
+          <p className="mt-3 text-red-400 text-center text-lg">
+            Game Over! Refresh to restart.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
