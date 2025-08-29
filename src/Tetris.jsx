@@ -136,15 +136,19 @@ export default function Tetris() {
         if (collides(newPiece, prevBoard)) {
           collided = true;
           const merged = merge(prevPiece, prevBoard);
+          if (prevPiece.y === 0) {
+            // First row collision -> game over, don't spawn next
+            setGameOver(true);
+            return merged;
+          }
           const cleared = clearLines(merged);
-          if (prevPiece.y === 0) setGameOver(true);
           return cleared;
         }
         return prevBoard;
       });
 
-      // Only spawn next piece if not game over and collided
-      if (collided && !gameOver) {
+      if (collided && prevPiece.y > 0) {
+        // Spawn next piece if not game over
         setPiece(nextPiece);
         setNextPiece(randomPiece());
         return nextPiece;
@@ -154,7 +158,6 @@ export default function Tetris() {
     });
   }, [nextPiece, gameOver]);
 
-  // Auto drop interval
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
@@ -211,7 +214,7 @@ export default function Tetris() {
     holdRefs.current[dir] = null;
   };
 
-  // Keyboard controls for PC
+  // Keyboard controls
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
@@ -333,7 +336,10 @@ export default function Tetris() {
             </button>
             <button
               style={noHighlightStyle}
-              onPointerDown={(e) => { e.preventDefault(); setSoftDropping(true); }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                setSoftDropping(true);
+              }}
               onPointerUp={() => setSoftDropping(false)}
               onPointerLeave={() => setSoftDropping(false)}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
@@ -345,7 +351,9 @@ export default function Tetris() {
       </div>
 
       {gameOver && (
-        <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>
+        <p className="mt-2 text-red-400 text-center text-lg">
+          Game Over! Refresh to restart.
+        </p>
       )}
     </div>
   );
