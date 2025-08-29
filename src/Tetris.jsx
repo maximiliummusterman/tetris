@@ -426,21 +426,25 @@ export default function Tetris() {
             <div
               className="grid gap-2 mt-4"
               style={{
-                gridTemplateColumns: "repeat(3, auto)",
+                gridTemplateColumns: "repeat(2, auto)", // 2 columns
                 justifyContent: "center",
                 alignItems: "center",
               }}
             >
-              {/* Row 1: Move Left, Rotate (span 2), Move Right */}
+              {/* Row 1: Move left and Move right */}
               <IconButton onDown={() => startHold(-1)} onUp={() => stopHold(-1)}>
                 ←
               </IconButton>
+              <IconButton onDown={() => startHold(1)} onUp={() => stopHold(1)}>
+                →
+              </IconButton>
             
+              {/* Row 2: Rotate button spanning 2 columns */}
               <IconButton
                 onDown={rotatePiece}
                 style={{
-                  gridColumn: "span 2",   // ✅ spans 2 columns
-                  width: "100%",          // makes sure it stretches across both
+                  gridColumn: "1 / span 2", // spans both columns
+                  width: "100%",
                   height: 64,
                   fontSize: "1.5rem",
                 }}
@@ -448,11 +452,7 @@ export default function Tetris() {
                 ⟳
               </IconButton>
             
-              <IconButton onDown={() => startHold(1)} onUp={() => stopHold(1)}>
-                →
-              </IconButton>
-            
-              {/* Row 2: Drop buttons */}
+              {/* Row 3: Soft drop and Hard drop */}
               <IconButton
                 onDown={() => setSoftDropping(true)}
                 onUp={() => setSoftDropping(false)}
@@ -460,8 +460,7 @@ export default function Tetris() {
               >
                 ↓
               </IconButton>
-            
-              <IconButton onDown={hardDrop} style={{ gridColumn: "span 2" }}>
+              <IconButton onDown={hardDrop}>
                 ⤓
               </IconButton>
             </div>
