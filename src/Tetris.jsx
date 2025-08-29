@@ -126,9 +126,9 @@ export default function Tetris() {
   };
 
   const spawnNextPiece = useCallback(() => {
-    setPiece(nextPiece);
+    if (!gameOver) setPiece(nextPiece);
     setNextPiece(randomPiece());
-  }, [nextPiece]);
+  }, [nextPiece, gameOver]);
 
   const drop = useCallback(() => {
     setPiece((prevPiece) => {
@@ -148,7 +148,7 @@ export default function Tetris() {
       });
 
       if (collided) {
-        spawnNextPiece();
+        spawnNextPiece(); // only spawns if game not over
         return prevPiece;
       } else {
         return { ...prevPiece, y: prevPiece.y + 1 };
