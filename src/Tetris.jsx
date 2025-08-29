@@ -59,7 +59,6 @@ export default function Tetris() {
   const moveDir = useRef(0); // -1 left, 1 right
   const softDrop = useRef(false);
 
-  // Prevent scrolling
   useEffect(() => {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -111,17 +110,17 @@ export default function Tetris() {
     return { ...p, shape: rotated };
   };
 
-  const movePiece = (dx) => {
-    setPiece((prev) => {
-      const moved = { ...prev, x: prev.x + dx };
-      return collides(moved) ? prev : moved;
-    });
-  };
-
   const rotatePiece = () => {
     setPiece((prev) => {
       const r = rotate(prev);
       return collides(r) ? prev : r;
+    });
+  };
+
+  const movePiece = (dx) => {
+    setPiece((prev) => {
+      const moved = { ...prev, x: prev.x + dx };
+      return collides(moved) ? prev : moved;
     });
   };
 
@@ -152,7 +151,7 @@ export default function Tetris() {
     });
   };
 
-  // Main game loop
+  // Game loop: single interval
   useEffect(() => {
     if (gameOver) return;
     const interval = setInterval(() => {
@@ -163,7 +162,7 @@ export default function Tetris() {
     return () => clearInterval(interval);
   }, [gameOver]);
 
-  // Render board
+  // Display board
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -182,7 +181,6 @@ export default function Tetris() {
     <div style={{ height: "100vh", overflow: "hidden" }} className="flex flex-col items-center justify-center bg-gray-900 text-white px-2">
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
       <div className="flex flex-row gap-4">
-        {/* Main grid */}
         <div
           className="grid"
           style={{
@@ -206,18 +204,17 @@ export default function Tetris() {
           )}
         </div>
 
-        {/* Next panel + buttons */}
         <div className="flex flex-col items-center gap-4">
           <p className="text-lg mb-1">Next:</p>
           <div
             className="inline-grid border border-white"
             style={{
-              gridTemplateColumns: `repeat(${NEXT_SIZE}, ${BLOCK_SIZE}px)`,
-              gridTemplateRows: `repeat(${NEXT_SIZE}, ${BLOCK_SIZE}px)`,
+              gridTemplateColumns: `repeat(4, ${BLOCK_SIZE}px)`,
+              gridTemplateRows: `repeat(4, ${BLOCK_SIZE}px)`,
             }}
           >
-            {Array.from({ length: NEXT_SIZE }).map((_, y) =>
-              Array.from({ length: NEXT_SIZE }).map((_, x) => {
+            {Array.from({ length: 4 }).map((_, y) =>
+              Array.from({ length: 4 }).map((_, x) => {
                 const cell = nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
                 return (
                   <div
@@ -236,7 +233,6 @@ export default function Tetris() {
 
           <p className="mt-2 text-lg">Score: {score}</p>
 
-          {/* 2x2 button grid */}
           <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(2, auto)" }}>
             <button
               style={buttonStyle}
@@ -303,6 +299,7 @@ export default function Tetris() {
           </div>
         </div>
       </div>
+
       {gameOver && <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>}
     </div>
   );
