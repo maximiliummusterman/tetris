@@ -134,6 +134,7 @@ export default function Tetris() {
     setPiece(randomPiece());
   };
 
+  // ---- Keyboard controls ----
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
@@ -147,6 +148,7 @@ export default function Tetris() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [piece, board, gameOver]);
 
+  // ---- Automatic drop ----
   useEffect(() => {
     if (!gameOver) {
       dropInterval.current = setInterval(drop, 800);
@@ -154,6 +156,48 @@ export default function Tetris() {
     }
   }, [piece, gameOver]);
 
+  // ---- Mobile touch controls ----
+  useEffect(() => {
+    let startX, startY;
+
+    const handleTouchStart = (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+
+    const handleTouchEnd = (e) => {
+      if (gameOver) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 30) move(1);
+        else if (dx < -30) move(-1);
+      } else {
+        if (dy > 30) drop();
+        else if (dy < -30) rotatePiece();
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart);
+    window.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [piece, board, gameOver]);
+
+  // ---- Mobile on-screen buttons ----
+  const touchControl = (action) => (e) => {
+    e.preventDefault();
+    if (gameOver) return;
+    if (action === "left") move(-1);
+    if (action === "right") move(1);
+    if (action === "rotate") rotatePiece();
+    if (action === "drop") drop();
+  };
+
+  // ---- Render board ----
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -187,8 +231,38 @@ export default function Tetris() {
       </div>
       <p className="mt-4 text-xl">Score: {score}</p>
       {gameOver && (
-        <p className="mt-2 text-red-400 text-lg">Game Over! Refresh to restart.</p>
+        <p className="mt-2 text-red-400 text-lg">
+          Game Over! Refresh to restart.
+        </p>
       )}
+
+      {/* Mobile buttons */}
+      <div className="flex gap-4 mt-4">
+        <button
+          onTouchStart={touchControl("left")}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
+          ◀️
+        </button>
+        <button
+          onTouchStart={touchControl("rotate")}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
+          🔄
+        </button>
+        <button
+          onTouchStart={touchControl("right")}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
+          ▶️
+        </button>
+        <button
+          onTouchStart={touchControl("drop")}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
+          ⬇️
+        </button>
+      </div>
     </div>
   );
 }
