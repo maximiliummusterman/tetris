@@ -235,6 +235,19 @@ export default function Tetris() {
     });
   };
 
+  // Hold movement
+  const startHold = (dir) => {
+    if (holdRefs.current[dir]) return;
+    move(dir);
+    holdRefs.current[dir] = setInterval(() => move(dir), 130);
+  };
+  const stopHold = (dir) => {
+    if (holdRefs.current[dir]) {
+      clearInterval(holdRefs.current[dir]);
+      holdRefs.current[dir] = null;
+    }
+  };
+
   // Ghost piece calculation
   const ghostPiece = (() => {
     let ghost = { ...piece };
@@ -305,6 +318,31 @@ export default function Tetris() {
     );
     return grid;
   };
+
+  // IconButton for touch controls
+  const IconButton = ({ onDown, onUp, onLeave, label, children }) => (
+    <button
+      aria-label={label}
+      role="button"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onDown && onDown();
+      }}
+      onPointerUp={(e) => {
+        e.preventDefault();
+        onUp && onUp();
+      }}
+      onPointerLeave={(e) => {
+        e.preventDefault();
+        onLeave && onLeave();
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+      className="px-4 py-3 bg-gray-700 rounded-lg text-white text-xl flex items-center justify-center"
+      style={{ ...noHighlightStyle, touchAction: "none" }}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <div
@@ -377,6 +415,56 @@ export default function Tetris() {
             </div>
 
             <p className="mt-2 text-lg">Score: {score}</p>
+
+            {/* Controls */}
+            <div
+              className="grid gap-2 mt-4"
+              style={{
+                gridTemplateColumns: "repeat(2, auto)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {/* Left */}
+              <IconButton
+                label="Move Left"
+                onDown={() => startHold(-1)}
+                onUp={() => stopHold(-1)}
+                onLeave={() => stopHold(-1)}
+              >
+                ←
+              </IconButton>
+
+              {/* Right */}
+              <IconButton
+                label="Move Right"
+                onDown={() => startHold(1)}
+                onUp={() => stopHold(1)}
+                onLeave={() => stopHold(1)}
+              >
+                →
+              </IconButton>
+
+              {/* Rotate */}
+              <IconButton label="Rotate" onDown={rotatePiece}>
+                ⟳
+              </IconButton>
+
+              {/* Soft Drop */}
+              <IconButton
+                label="Soft Drop"
+                onDown={() => setSoftDropping(true)}
+                onUp={() => setSoftDropping(false)}
+                onLeave={() => setSoftDropping(false)}
+              >
+                ↓
+              </IconButton>
+
+              {/* Hard Drop */}
+              <IconButton label="Hard Drop" onDown={hardDrop}>
+                ⤓
+              </IconButton>
+            </div>
           </div>
         </div>
 
