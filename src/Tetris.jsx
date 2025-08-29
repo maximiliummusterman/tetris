@@ -61,7 +61,6 @@ export default function Tetris() {
   const autoDropRef = useRef(null);
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
-  const landingRef = useRef(false); // block moves while landing
 
   const noHighlightStyle = {
     userSelect: "none",
@@ -70,24 +69,16 @@ export default function Tetris() {
     touchAction: "none",
   };
 
-  // Prevent scrolling & calculate block size
+  // Calculate block size
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.height = "100%";
-    document.body.style.height = "100%";
-
-    const headerHeight = 100;
+    const headerHeight = 80; // reserved space for title
     const buttonsHeight = 120;
     const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
     const availableWidth = window.innerWidth - NEXT_GRID_SIZE * 30 - 20;
-    const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
+    const size = Math.floor(
+      Math.min(availableHeight / ROWS, availableWidth / COLS, 30)
+    );
     setBlockSize(size);
-
-    return () => {
-      document.body.style.overflow = "auto";
-      document.documentElement.style.overflow = "auto";
-    };
   }, []);
 
   const collides = (p, brd) =>
@@ -126,46 +117,43 @@ export default function Tetris() {
     return newBoard;
   };
 
-  // Drop a piece
-  const drop = useCallback(() => {
-    if (gameOver) return;
-
+  const spawnNextPiece = useCallback(() => {
     setPiece((prev) => {
-      const nextPos = { ...prev, y: prev.y + 1 };
-      if (collides(nextPos, board)) {
-        landingRef.current = true; // block moves while landing
-
-        setBoard((prevBoard) => {
-          const merged = merge(prev, prevBoard);
-          return clearLines(merged);
-        });
-
-        if (prev.y === 0) {
-          clearInterval(autoDropRef.current);
-          setGameOver(true);
-        } else {
-          // Spawn next piece safely
-          setTimeout(() => {
-            setPiece(nextPiece);
-            setNextPiece(randomPiece());
-            landingRef.current = false; // allow moves now
-          }, 0);
-        }
-
+      const incoming = nextPiece;
+      setNextPiece(randomPiece());
+      if (collides(incoming, board)) {
+        setGameOver(true);
         return prev;
       }
-      return nextPos;
+      return incoming;
     });
-  }, [board, nextPiece, gameOver]);
+  }, [nextPiece, board]);
 
-  // Auto drop interval
+  const drop = useCallback(() => {
+    setPiece((prevPiece) => {
+      if (gameOver) return prevPiece;
+      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
+      if (collides(newPiece, board)) {
+        setBoard((prevBoard) => {
+          const merged = merge(prevPiece, prevBoard);
+          const cleared = clearLines(merged);
+          if (prevPiece.y === 0) setGameOver(true);
+          return cleared;
+        });
+        spawnNextPiece();
+        return prevPiece;
+      }
+      return newPiece;
+    });
+  }, [board, spawnNextPiece, gameOver]);
+
+  // Auto drop
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
   }, [drop]);
 
   const move = (dx) => {
-    if (landingRef.current) return;
     setPiece((prev) => {
       const newPiece = { ...prev, x: prev.x + dx };
       return collides(newPiece, board) ? prev : newPiece;
@@ -173,9 +161,10 @@ export default function Tetris() {
   };
 
   const rotatePiece = () => {
-    if (landingRef.current) return;
     setPiece((prev) => {
-      const rotated = prev.shape[0].map((_, i) => prev.shape.map((row) => row[i]).reverse());
+      const rotated = prev.shape[0].map((_, i) =>
+        prev.shape.map((row) => row[i]).reverse()
+      );
       const newPiece = { ...prev, shape: rotated };
       return collides(newPiece, board) ? prev : newPiece;
     });
@@ -186,10 +175,7 @@ export default function Tetris() {
       let newPiece = { ...prev };
       while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
       setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
-      if (!gameOver) {
-        setPiece(nextPiece);
-        setNextPiece(randomPiece());
-      }
+      spawnNextPiece();
       return newPiece;
     });
   };
@@ -210,9 +196,7 @@ export default function Tetris() {
   const startHold = (dir) => {
     if (holdRefs.current[dir]) return;
     move(dir);
-    holdRefs.current[dir] = setInterval(() => {
-      move(dir);
-    }, 150);
+    holdRefs.current[dir] = setInterval(() => move(dir), 150);
   };
   const stopHold = (dir) => {
     clearInterval(holdRefs.current[dir]);
@@ -242,12 +226,12 @@ export default function Tetris() {
 
   return (
     <div
-      className="flex flex-col items-center justify-center text-white bg-gray-900 px-2"
+      className="flex flex-col items-center justify-center text-white bg-gray-900"
       style={{ ...noHighlightStyle, height: "100vh", overflow: "hidden" }}
     >
-      <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
+      <h1 className="text-3xl font-bold text-center mt-2 mb-2">Tetris</h1>
 
-      <div className="flex flex-row gap-4">
+      <div className="flex flex-row gap-4 items-center justify-center">
         {/* Main board */}
         <div
           className="grid"
@@ -280,14 +264,14 @@ export default function Tetris() {
             style={{
               gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
               gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
-              justifyContent: "center",
-              alignContent: "center",
             }}
           >
             {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
               Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
                 const cell =
-                  nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
+                  nextPiece.shape[y] && nextPiece.shape[y][x]
+                    ? nextPiece.shape[y][x]
+                    : 0;
                 return (
                   <div
                     key={`next-${y}-${x}`}
@@ -305,7 +289,7 @@ export default function Tetris() {
 
           <p className="mt-2 text-lg">Score: {score}</p>
 
-          {/* 2x2 Buttons */}
+          {/* Buttons */}
           <div
             className="grid gap-2 mt-4"
             style={{
