@@ -57,10 +57,12 @@ export default function Tetris() {
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [blockSize, setBlockSize] = useState(30);
-  const dropIntervalRef = useRef(null);
-  const dropSpeedRef = useRef(600); // dynamic interval: normal 600ms, soft drop 50ms
 
-  // Prevent scrolling and calculate block size
+  const autoDropRef = useRef(null);
+  const softDropRef = useRef(null);
+  const holdRefs = useRef({}); // left/right intervals
+
+  // Prevent scrolling & calculate block size
   useEffect(() => {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -139,17 +141,11 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
-  // Start drop interval with dynamic speed
-  const startDropInterval = useCallback((speed) => {
-    clearInterval(dropIntervalRef.current);
-    dropSpeedRef.current = speed;
-    dropIntervalRef.current = setInterval(drop, dropSpeedRef.current);
-  }, [drop]);
-
+  // Automatic drop interval
   useEffect(() => {
-    startDropInterval(600);
-    return () => clearInterval(dropIntervalRef.current);
-  }, [startDropInterval]);
+    autoDropRef.current = setInterval(drop, 600);
+    return () => clearInterval(autoDropRef.current);
+  }, [drop]);
 
   const move = (dx) => {
     setPiece((prev) => {
@@ -176,16 +172,40 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop handlers
-  const startSoftDrop = () => startDropInterval(50);
-  const stopSoftDrop = () => startDropInterval(600);
-
-  const buttonStyle = {
-    userSelect: "none",
-    WebkitUserSelect: "none",
-    WebkitTapHighlightColor: "transparent",
-    touchAction: "manipulation",
+  // Soft drop interval (50ms) while holding
+  const startSoftDrop = () => {
+    if (softDropRef.current) return;
+    softDropRef.current = setInterval(drop, 50);
   };
+  const stopSoftDrop = () => {
+    clearInterval(softDropRef.current);
+    softDropRef.current = null;
+  };
+
+  // Hold left/right intervals
+  const startHold = (dir) => {
+    if (holdRefs.current[dir]) return;
+    move(dir);
+    holdRefs.current[dir] = setInterval(() => move(dir), 150);
+  };
+  const stopHold = (dir) => {
+    clearInterval(holdRefs.current[dir]);
+    holdRefs.current[dir] = null;
+  };
+
+  // Keyboard controls for PC
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (gameOver) return;
+      if (e.key === "ArrowLeft") move(-1);
+      if (e.key === "ArrowRight") move(1);
+      if (e.key === "ArrowDown") drop();
+      if (e.key === "ArrowUp") rotatePiece();
+      if (e.key === " ") hardDrop();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [drop, gameOver]);
 
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
@@ -193,6 +213,13 @@ export default function Tetris() {
       if (c && piece.y + dy >= 0) displayBoard[piece.y + dy][piece.x + dx] = piece.type;
     })
   );
+
+  const buttonStyle = {
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
+  };
 
   return (
     <div
@@ -202,6 +229,7 @@ export default function Tetris() {
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
       <div className="flex flex-row gap-4">
+        {/* Main board */}
         <div
           className="grid"
           style={{
@@ -225,6 +253,7 @@ export default function Tetris() {
           )}
         </div>
 
+        {/* Next piece */}
         <div className="flex flex-col items-center">
           <p className="text-lg mb-1">Next:</p>
           <div
@@ -262,17 +291,37 @@ export default function Tetris() {
         <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>
       )}
 
+      {/* Buttons below main + next grid */}
       <div className="flex gap-2 mt-4 flex-wrap justify-center">
-        <button style={buttonStyle} onTouchStart={() => move(-1)} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
+        <button
+          style={buttonStyle}
+          onTouchStart={() => startHold(-1)}
+          onTouchEnd={() => stopHold(-1)}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
           ←
         </button>
-        <button style={buttonStyle} onTouchStart={rotatePiece} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
+        <button
+          style={buttonStyle}
+          onTouchStart={rotatePiece}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
           ↺
         </button>
-        <button style={buttonStyle} onTouchStart={() => move(1)} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
+        <button
+          style={buttonStyle}
+          onTouchStart={() => startHold(1)}
+          onTouchEnd={() => stopHold(1)}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
           →
         </button>
-        <button style={buttonStyle} onTouchStart={startSoftDrop} onTouchEnd={stopSoftDrop} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
+        <button
+          style={buttonStyle}
+          onTouchStart={startSoftDrop}
+          onTouchEnd={stopSoftDrop}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
           ↓
         </button>
       </div>
