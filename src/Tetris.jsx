@@ -59,8 +59,8 @@ export default function Tetris() {
   const [blockSize, setBlockSize] = useState(30);
 
   const autoDropRef = useRef(null);
-  const softDropRef = useRef(null);
   const holdRefs = useRef({});
+  const [softDropping, setSoftDropping] = useState(false);
 
   // Prevent scrolling & calculate block size
   useEffect(() => {
@@ -141,6 +141,7 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
+  // Auto drop interval
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
@@ -171,29 +172,17 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop
-  const startSoftDrop = () => {
-    if (softDropRef.current) return;
-    softDropRef.current = setInterval(drop, 50);
-  };
-  const stopSoftDrop = () => {
-    clearInterval(softDropRef.current);
-    softDropRef.current = null;
-  };
-
-  // Ensure soft drop stops on any pointer/touch release
+  // Soft drop with mobile-friendly loop
   useEffect(() => {
-    const handlePointerUp = () => stopSoftDrop();
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("touchend", handlePointerUp);
-    window.addEventListener("touchcancel", handlePointerUp);
-
-    return () => {
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("touchend", handlePointerUp);
-      window.removeEventListener("touchcancel", handlePointerUp);
+    if (!softDropping) return;
+    let frame;
+    const loop = () => {
+      if (softDropping) drop();
+      frame = setTimeout(loop, 50);
     };
-  }, []);
+    loop();
+    return () => clearTimeout(frame);
+  }, [softDropping, drop]);
 
   // Hold left/right
   const startHold = (dir) => {
@@ -206,6 +195,7 @@ export default function Tetris() {
     holdRefs.current[dir] = null;
   };
 
+  // Keyboard controls for PC
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
@@ -334,7 +324,9 @@ export default function Tetris() {
             </button>
             <button
               style={buttonStyle}
-              onPointerDown={(e) => { e.preventDefault(); startSoftDrop(); }}
+              onPointerDown={(e) => { e.preventDefault(); setSoftDropping(true); }}
+              onPointerUp={() => setSoftDropping(false)}
+              onPointerLeave={() => setSoftDropping(false)}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↓
