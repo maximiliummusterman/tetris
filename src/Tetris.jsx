@@ -57,6 +57,7 @@ export default function Tetris() {
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const dropInterval = useRef(null);
+  const holdRefs = useRef({});
 
   const rotate = (p) => {
     const rotated = p.shape[0].map((_, i) =>
@@ -70,7 +71,10 @@ export default function Tetris() {
       row.some(
         (cell, dx) =>
           cell &&
-          (brd[p.y + dy]?.[p.x + dx] !== null || p.y + dy >= ROWS || p.x + dx < 0 || p.x + dx >= COLS)
+          (brd[p.y + dy]?.[p.x + dx] !== null ||
+            p.y + dy >= ROWS ||
+            p.x + dx < 0 ||
+            p.x + dx >= COLS)
       )
     );
   };
@@ -151,16 +155,18 @@ export default function Tetris() {
   // ---- Automatic drop ----
   useEffect(() => {
     if (!gameOver) {
+      clearInterval(dropInterval.current);
       dropInterval.current = setInterval(drop, 800);
       return () => clearInterval(dropInterval.current);
     }
-  }, [piece, gameOver]);
+  }, [gameOver]);
 
   // ---- Mobile on-screen buttons & hold support ----
-  const holdRefs = useRef({});
+  const SOFT_DROP_INTERVAL = 50;
 
   const startHold = (action) => {
     if (gameOver) return;
+
     if (action === "left") {
       move(-1);
       holdRefs.current.left = setInterval(() => move(-1), 150);
@@ -171,7 +177,7 @@ export default function Tetris() {
     }
     if (action === "drop") {
       drop();
-      holdRefs.current.drop = setInterval(() => drop(), 150);
+      holdRefs.current.drop = setInterval(() => drop(), SOFT_DROP_INTERVAL);
     }
   };
 
@@ -179,10 +185,9 @@ export default function Tetris() {
     clearInterval(holdRefs.current[action]);
   };
 
-  const touchControl = (action) => (e) => {
+  const rotateControl = (e) => {
     e.preventDefault();
-    if (action === "rotate") rotatePiece();
-    else startHold(action);
+    if (!gameOver) rotatePiece();
   };
 
   // ---- Render board ----
@@ -227,27 +232,27 @@ export default function Tetris() {
       {/* Mobile buttons */}
       <div className="flex gap-4 mt-4">
         <button
-          onTouchStart={touchControl("left")}
+          onTouchStart={startHold.bind(null, "left")}
           onTouchEnd={() => endHold("left")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ◀️
         </button>
         <button
-          onTouchStart={touchControl("rotate")}
+          onTouchStart={rotateControl}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           🔄
         </button>
         <button
-          onTouchStart={touchControl("right")}
+          onTouchStart={startHold.bind(null, "right")}
           onTouchEnd={() => endHold("right")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ▶️
         </button>
         <button
-          onTouchStart={touchControl("drop")}
+          onTouchStart={startHold.bind(null, "drop")}
           onTouchEnd={() => endHold("drop")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
