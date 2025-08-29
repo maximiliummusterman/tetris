@@ -359,6 +359,27 @@ export default function Tetris() {
         <h1 className="text-3xl font-bold text-center mb-2 mt-0">Tetris</h1>
 
         <div className="flex flex-row gap-4 items-center justify-center">
+          {paused && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                backgroundColor: "rgba(0,0,0,0.7)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+                color: "white",
+                fontSize: "2rem",
+                fontWeight: "bold",
+              }}
+            >
+              PAUSED
+            </div>
+          )}
           {/* Main board */}
           <div
             className="grid"
