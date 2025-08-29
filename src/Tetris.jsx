@@ -255,13 +255,13 @@ export default function Tetris() {
     }
   };
 
-  const ghostPiece = useMemo(() => {
+  const ghostPiece = (() => {
     let ghost = { ...piece };
     while (!collides({ ...ghost, y: ghost.y + 1 }, board)) {
       ghost.y++;
     }
     return ghost;
-  }, [piece, board]);
+  })();
 
   useEffect(() => {
     const handleKey = (e) => {
