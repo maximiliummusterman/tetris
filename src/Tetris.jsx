@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 
 const COLS = 10;
 const ROWS = 20;
-const NEXT_GRID_SIZE = 4;
+const NEXT_SIZE = 4;
+const DROP_INTERVAL = 600;
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
@@ -56,11 +57,12 @@ export default function Tetris() {
   const [gameOver, setGameOver] = useState(false);
   const [blockSize, setBlockSize] = useState(30);
 
-  const moveRef = useRef(0); // -1 for left, 1 for right
+  const moveDirRef = useRef(0); // -1 left, 1 right
   const softDropRef = useRef(false);
-  const dropIntervalRef = useRef(null);
+  const autoDropRef = useRef(null);
+  const holdIntervalRef = useRef(null);
 
-  // Prevent scrolling
+  // Prevent scroll
   useEffect(() => {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -75,9 +77,8 @@ export default function Tetris() {
     const headerHeight = 100;
     const buttonsHeight = 120;
     const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
-    const availableWidth = window.innerWidth - NEXT_GRID_SIZE * 30 - 20;
-    const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
-    setBlockSize(size);
+    const availableWidth = window.innerWidth - NEXT_SIZE * 30 - 20;
+    setBlockSize(Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30)));
   }, []);
 
   const collides = (p, brd) =>
@@ -118,7 +119,7 @@ export default function Tetris() {
     setNextPiece(randomPiece());
   };
 
-  const drop = () => {
+  const dropPiece = () => {
     setPiece((prev) => {
       const newPiece = { ...prev, y: prev.y + 1 };
       if (collides(newPiece, board)) {
@@ -137,8 +138,8 @@ export default function Tetris() {
 
   const movePiece = (dx) => {
     setPiece((prev) => {
-      const newPiece = { ...prev, x: prev.x + dx };
-      return collides(newPiece, board) ? prev : newPiece;
+      const moved = { ...prev, x: prev.x + dx };
+      return collides(moved, board) ? prev : moved;
     });
   };
 
@@ -160,31 +161,32 @@ export default function Tetris() {
     });
   };
 
-  // Main game loop for drop + continuous movement
+  // Auto-drop
   useEffect(() => {
     if (gameOver) return;
-    dropIntervalRef.current = setInterval(() => {
-      // Move left/right if holding
-      if (moveRef.current !== 0) movePiece(moveRef.current);
-      // Soft drop if active
-      if (softDropRef.current) drop();
-      else drop();
-    }, 600);
-    return () => clearInterval(dropIntervalRef.current);
+    autoDropRef.current = setInterval(dropPiece, DROP_INTERVAL);
+    return () => clearInterval(autoDropRef.current);
   }, [gameOver]);
 
-  const startMove = (dir) => {
-    moveRef.current = dir;
-  };
-  const stopMove = () => {
-    moveRef.current = 0;
-  };
-  const startSoftDrop = () => {
-    softDropRef.current = true;
-  };
-  const stopSoftDrop = () => {
-    softDropRef.current = false;
-  };
+  // Continuous move / soft drop
+  useEffect(() => {
+    if (gameOver) return;
+    if (moveDirRef.current !== 0 || softDropRef.current) {
+      if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = setInterval(() => {
+        if (moveDirRef.current !== 0) movePiece(moveDirRef.current);
+        if (softDropRef.current) dropPiece();
+      }, 100);
+    } else {
+      if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
+    }
+    return () => holdIntervalRef.current && clearInterval(holdIntervalRef.current);
+  });
+
+  const startMove = (dir) => (moveDirRef.current = dir);
+  const stopMove = () => (moveDirRef.current = 0);
+  const startSoftDrop = () => (softDropRef.current = true);
+  const stopSoftDrop = () => (softDropRef.current = false);
 
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
@@ -206,7 +208,6 @@ export default function Tetris() {
       className="flex flex-col items-center justify-center bg-gray-900 text-white px-2"
     >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
-
       <div className="flex flex-row gap-4">
         {/* Main grid */}
         <div
@@ -232,20 +233,20 @@ export default function Tetris() {
           )}
         </div>
 
-        {/* Right panel: next piece + score + 2x2 button grid */}
+        {/* Right panel */}
         <div className="flex flex-col items-center gap-4">
           <p className="text-lg mb-1">Next:</p>
           <div
             className="inline-grid border border-white"
             style={{
-              gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
-              gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              gridTemplateColumns: `repeat(${NEXT_SIZE}, ${blockSize}px)`,
+              gridTemplateRows: `repeat(${NEXT_SIZE}, ${blockSize}px)`,
               justifyContent: "center",
               alignContent: "center",
             }}
           >
-            {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
-              Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
+            {Array.from({ length: NEXT_SIZE }).map((_, y) =>
+              Array.from({ length: NEXT_SIZE }).map((_, x) => {
                 const cell =
                   nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
                 return (
@@ -267,7 +268,6 @@ export default function Tetris() {
 
           {/* 2x2 button grid */}
           <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(2, auto)" }}>
-            {/* Left */}
             <button
               style={buttonStyle}
               onMouseDown={() => startMove(-1)}
@@ -285,8 +285,6 @@ export default function Tetris() {
             >
               ←
             </button>
-
-            {/* Right */}
             <button
               style={buttonStyle}
               onMouseDown={() => startMove(1)}
@@ -304,8 +302,6 @@ export default function Tetris() {
             >
               →
             </button>
-
-            {/* Rotate */}
             <button
               style={buttonStyle}
               onMouseDown={rotatePiece}
@@ -317,8 +313,6 @@ export default function Tetris() {
             >
               ↺
             </button>
-
-            {/* Soft Drop */}
             <button
               style={buttonStyle}
               onMouseDown={startSoftDrop}
