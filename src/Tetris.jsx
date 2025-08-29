@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 10;
 const ROWS = 20;
-const DROP_INTERVAL = 600;
-const BLOCK_SIZE = 30;
+const NEXT_GRID_SIZE = 4;
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
@@ -50,34 +49,53 @@ function randomPiece() {
 }
 
 export default function Tetris() {
-  const [board, setBoard] = useState(Array.from({ length: ROWS }, () => Array(COLS).fill(null)));
+  const [board, setBoard] = useState(
+    Array.from({ length: ROWS }, () => Array(COLS).fill(null))
+  );
   const [piece, setPiece] = useState(randomPiece());
   const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [blockSize, setBlockSize] = useState(30);
 
-  const moveDir = useRef(0); // -1 left, 1 right
-  const softDrop = useRef(false);
+  const autoDropRef = useRef(null);
+  const holdRefs = useRef({});
+  const [softDropping, setSoftDropping] = useState(false);
 
+  // Prevent scrolling & calculate block size
   useEffect(() => {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.height = "100%";
+    document.body.style.height = "100%";
+
+    const headerHeight = 100;
+    const buttonsHeight = 120;
+    const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
+    const availableWidth = window.innerWidth - NEXT_GRID_SIZE * 30 - 20;
+    const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
+    setBlockSize(size);
+
     return () => {
       document.body.style.overflow = "auto";
       document.documentElement.style.overflow = "auto";
     };
   }, []);
 
-  const collides = (p, brd = board) =>
+  const collides = (p, brd) =>
     p.shape.some((row, dy) =>
       row.some(
         (cell, dx) =>
-          cell && (brd[p.y + dy]?.[p.x + dx] !== null || p.y + dy >= ROWS || p.x + dx < 0 || p.x + dx >= COLS)
+          cell &&
+          (brd[p.y + dy]?.[p.x + dx] !== null ||
+            p.y + dy >= ROWS ||
+            p.x + dx < 0 ||
+            p.x + dx >= COLS)
       )
     );
 
   const merge = (p, brd) => {
-    const copy = brd.map((r) => [...r]);
+    const copy = brd.map((row) => [...row]);
     p.shape.forEach((row, dy) =>
       row.forEach((cell, dx) => {
         if (cell) copy[p.y + dy][p.x + dx] = p.type;
@@ -89,7 +107,7 @@ export default function Tetris() {
   const clearLines = (brd) => {
     let cleared = 0;
     const newBoard = brd.filter((row) => {
-      if (row.every((c) => c !== null)) {
+      if (row.every((cell) => cell !== null)) {
         cleared++;
         return false;
       }
@@ -100,69 +118,97 @@ export default function Tetris() {
     return newBoard;
   };
 
-  const spawnNext = () => {
+  const spawnNextPiece = useCallback(() => {
     setPiece(nextPiece);
     setNextPiece(randomPiece());
-  };
+  }, [nextPiece]);
 
-  const rotate = (p) => {
-    const rotated = p.shape[0].map((_, i) => p.shape.map((row) => row[i]).reverse());
-    return { ...p, shape: rotated };
+  const drop = useCallback(() => {
+    setPiece((prevPiece) => {
+      if (gameOver) return prevPiece;
+      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
+      if (collides(newPiece, board)) {
+        setBoard((prevBoard) => {
+          const merged = merge(prevPiece, prevBoard);
+          const cleared = clearLines(merged);
+          if (prevPiece.y === 0) setGameOver(true);
+          return cleared;
+        });
+        spawnNextPiece();
+        return prevPiece;
+      }
+      return newPiece;
+    });
+  }, [board, spawnNextPiece, gameOver]);
+
+  // Auto drop interval
+  useEffect(() => {
+    autoDropRef.current = setInterval(drop, 600);
+    return () => clearInterval(autoDropRef.current);
+  }, [drop]);
+
+  const move = (dx) => {
+    setPiece((prev) => {
+      const newPiece = { ...prev, x: prev.x + dx };
+      return collides(newPiece, board) ? prev : newPiece;
+    });
   };
 
   const rotatePiece = () => {
     setPiece((prev) => {
-      const r = rotate(prev);
-      return collides(r) ? prev : r;
-    });
-  };
-
-  const movePiece = (dx) => {
-    setPiece((prev) => {
-      const moved = { ...prev, x: prev.x + dx };
-      return collides(moved) ? prev : moved;
-    });
-  };
-
-  const dropPiece = () => {
-    setPiece((prev) => {
-      const down = { ...prev, y: prev.y + 1 };
-      if (collides(down)) {
-        setBoard((b) => {
-          const merged = merge(prev, b);
-          const cleared = clearLines(merged);
-          if (prev.y === 0) setGameOver(true);
-          return cleared;
-        });
-        spawnNext();
-        return prev;
-      }
-      return down;
+      const rotated = prev.shape[0].map((_, i) => prev.shape.map((row) => row[i]).reverse());
+      const newPiece = { ...prev, shape: rotated };
+      return collides(newPiece, board) ? prev : newPiece;
     });
   };
 
   const hardDrop = () => {
     setPiece((prev) => {
-      let p = { ...prev };
-      while (!collides({ ...p, y: p.y + 1 })) p.y++;
-      setBoard((b) => clearLines(merge(p, b)));
-      spawnNext();
-      return p;
+      let newPiece = { ...prev };
+      while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
+      setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
+      spawnNextPiece();
+      return newPiece;
     });
   };
 
-  // Game loop: single interval
+  // Soft drop with mobile-friendly loop
   useEffect(() => {
-    if (gameOver) return;
-    const interval = setInterval(() => {
-      if (moveDir.current !== 0) movePiece(moveDir.current);
-      if (softDrop.current) dropPiece();
-      dropPiece();
-    }, DROP_INTERVAL);
-    return () => clearInterval(interval);
-  }, [gameOver]);
+    if (!softDropping) return;
+    let frame;
+    const loop = () => {
+      if (softDropping) drop();
+      frame = setTimeout(loop, 50);
+    };
+    loop();
+    return () => clearTimeout(frame);
+  }, [softDropping, drop]);
 
-  // Display board
+  // Hold left/right
+  const startHold = (dir) => {
+    if (holdRefs.current[dir]) return;
+    move(dir);
+    holdRefs.current[dir] = setInterval(() => move(dir), 150);
+  };
+  const stopHold = (dir) => {
+    clearInterval(holdRefs.current[dir]);
+    holdRefs.current[dir] = null;
+  };
+
+  // Keyboard controls for PC
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (gameOver) return;
+      if (e.key === "ArrowLeft") move(-1);
+      if (e.key === "ArrowRight") move(1);
+      if (e.key === "ArrowDown") drop();
+      if (e.key === "ArrowUp") rotatePiece();
+      if (e.key === " ") hardDrop();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [drop, gameOver]);
+
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -178,14 +224,19 @@ export default function Tetris() {
   };
 
   return (
-    <div style={{ height: "100vh", overflow: "hidden" }} className="flex flex-col items-center justify-center bg-gray-900 text-white px-2">
+    <div
+      className="flex flex-col items-center justify-center text-white bg-gray-900 px-2"
+      style={{ height: "100vh", overflow: "hidden", touchAction: "none" }}
+    >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
+
       <div className="flex flex-row gap-4">
+        {/* Main board */}
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `repeat(${COLS}, ${BLOCK_SIZE}px)`,
-            gridTemplateRows: `repeat(${ROWS}, ${BLOCK_SIZE}px)`,
+            gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
+            gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
             border: "2px solid white",
           }}
         >
@@ -194,8 +245,8 @@ export default function Tetris() {
               <div
                 key={`${y}-${x}`}
                 style={{
-                  width: BLOCK_SIZE,
-                  height: BLOCK_SIZE,
+                  width: blockSize,
+                  height: blockSize,
                   border: "1px solid #333",
                   backgroundColor: cell ? COLORS[cell] : "#111",
                 }}
@@ -204,24 +255,28 @@ export default function Tetris() {
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-4">
+        {/* Right panel */}
+        <div className="flex flex-col items-center">
           <p className="text-lg mb-1">Next:</p>
           <div
             className="inline-grid border border-white"
             style={{
-              gridTemplateColumns: `repeat(4, ${BLOCK_SIZE}px)`,
-              gridTemplateRows: `repeat(4, ${BLOCK_SIZE}px)`,
+              gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              justifyContent: "center",
+              alignContent: "center",
             }}
           >
-            {Array.from({ length: 4 }).map((_, y) =>
-              Array.from({ length: 4 }).map((_, x) => {
-                const cell = nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
+            {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
+              Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
+                const cell =
+                  nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
                 return (
                   <div
                     key={`next-${y}-${x}`}
                     style={{
-                      width: BLOCK_SIZE,
-                      height: BLOCK_SIZE,
+                      width: blockSize,
+                      height: blockSize,
                       border: "1px solid #333",
                       backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
                     }}
@@ -233,65 +288,45 @@ export default function Tetris() {
 
           <p className="mt-2 text-lg">Score: {score}</p>
 
-          <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(2, auto)" }}>
+          {/* 2x2 Buttons */}
+          <div
+            className="grid gap-2 mt-4"
+            style={{
+              gridTemplateColumns: "repeat(2, auto)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
             <button
               style={buttonStyle}
-              onMouseDown={() => (moveDir.current = -1)}
-              onMouseUp={() => (moveDir.current = 0)}
-              onMouseLeave={() => (moveDir.current = 0)}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                moveDir.current = -1;
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                moveDir.current = 0;
-              }}
+              onPointerDown={() => startHold(-1)}
+              onPointerUp={() => stopHold(-1)}
+              onPointerLeave={() => stopHold(-1)}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ←
             </button>
             <button
               style={buttonStyle}
-              onMouseDown={() => (moveDir.current = 1)}
-              onMouseUp={() => (moveDir.current = 0)}
-              onMouseLeave={() => (moveDir.current = 0)}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                moveDir.current = 1;
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                moveDir.current = 0;
-              }}
+              onPointerDown={() => startHold(1)}
+              onPointerUp={() => stopHold(1)}
+              onPointerLeave={() => stopHold(1)}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               →
             </button>
             <button
               style={buttonStyle}
-              onMouseDown={rotatePiece}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                rotatePiece();
-              }}
+              onPointerDown={rotatePiece}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↺
             </button>
             <button
               style={buttonStyle}
-              onMouseDown={() => (softDrop.current = true)}
-              onMouseUp={() => (softDrop.current = false)}
-              onMouseLeave={() => (softDrop.current = false)}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                softDrop.current = true;
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                softDrop.current = false;
-              }}
+              onPointerDown={(e) => { e.preventDefault(); setSoftDropping(true); }}
+              onPointerUp={() => setSoftDropping(false)}
+              onPointerLeave={() => setSoftDropping(false)}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↓
@@ -300,7 +335,9 @@ export default function Tetris() {
         </div>
       </div>
 
-      {gameOver && <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>}
+      {gameOver && (
+        <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>
+      )}
     </div>
   );
 }
