@@ -144,7 +144,6 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
-  // Auto drop interval
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
@@ -187,7 +186,6 @@ export default function Tetris() {
     return () => clearTimeout(frame);
   }, [softDropping, drop]);
 
-  // Hold left/right
   const startHold = (dir) => {
     if (holdRefs.current[dir]) return;
     move(dir);
@@ -221,7 +219,7 @@ export default function Tetris() {
     };
   }, [drop, gameOver]);
 
-  // Mobile swipe/tap handling
+  // Mobile touch handling
   const handleTouchStart = (e) => {
     const touch = e.touches[0];
     touchRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
@@ -234,7 +232,6 @@ export default function Tetris() {
     const threshold = 20;
 
     if (absDx > threshold && !swipeHoldRef.current) {
-      // Start continuous horizontal movement
       move(dx > 0 ? 1 : -1);
       swipeHoldRef.current = setInterval(() => move(dx > 0 ? 1 : -1), 150);
     }
@@ -248,12 +245,10 @@ export default function Tetris() {
     const tapThreshold = 15;
     const tapTime = 200;
 
-    // Detect tap → rotate
     if (Math.abs(dx) < tapThreshold && Math.abs(dy) < tapThreshold && dt < tapTime) {
       rotatePiece();
     }
 
-    // Stop continuous horizontal movement
     if (swipeHoldRef.current) {
       clearInterval(swipeHoldRef.current);
       swipeHoldRef.current = null;
@@ -288,13 +283,114 @@ export default function Tetris() {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onTouchCancel={() => {
-        if (swipeHoldRef.current) clearInterval(swipeHoldRef.current);
-      }}
+      onTouchCancel={() => swipeHoldRef.current && clearInterval(swipeHoldRef.current)}
     >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
-      {/* ...rest of UI: main board, next piece, buttons (same as previous) */}
+      <div className="flex flex-row gap-4">
+        {/* Main board */}
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
+            gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
+            border: "2px solid white",
+          }}
+        >
+          {displayBoard.map((row, y) =>
+            row.map((cell, x) => (
+              <div
+                key={`${y}-${x}`}
+                style={{
+                  width: blockSize,
+                  height: blockSize,
+                  border: "1px solid #333",
+                  backgroundColor: cell ? COLORS[cell] : "#111",
+                }}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Right panel: next piece + score + buttons */}
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-lg mb-1">Next:</p>
+          <div
+            className="inline-grid border border-white"
+            style={{
+              gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              justifyContent: "center",
+              alignContent: "center",
+            }}
+          >
+            {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
+              Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
+                const cell =
+                  nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
+                return (
+                  <div
+                    key={`next-${y}-${x}`}
+                    style={{
+                      width: blockSize,
+                      height: blockSize,
+                      border: "1px solid #333",
+                      backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
+                    }}
+                  />
+                );
+              })
+            )}
+          </div>
+
+          <p className="mt-2 text-lg">Score: {score}</p>
+
+          {/* 2x2 button grid */}
+          <div
+            className="grid gap-2 mt-4"
+            style={{ gridTemplateColumns: "repeat(2, auto)", justifyContent: "center" }}
+          >
+            <button
+              style={buttonStyle}
+              onPointerDown={() => startHold(-1)}
+              onPointerUp={() => stopHold(-1)}
+              onPointerLeave={() => stopHold(-1)}
+              className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+            >
+              ←
+            </button>
+            <button
+              style={buttonStyle}
+              onPointerDown={() => startHold(1)}
+              onPointerUp={() => stopHold(1)}
+              onPointerLeave={() => stopHold(1)}
+              className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+            >
+              →
+            </button>
+            <button
+              style={buttonStyle}
+              onPointerDown={rotatePiece}
+              className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+            >
+              ↺
+            </button>
+            <button
+              style={buttonStyle}
+              onPointerDown={() => setSoftDropping(true)}
+              onPointerUp={() => setSoftDropping(false)}
+              onPointerLeave={() => setSoftDropping(false)}
+              className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+            >
+              ↓
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {gameOver && (
+        <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>
+      )}
     </div>
   );
 }
