@@ -54,10 +54,12 @@ export default function Tetris() {
     Array.from({ length: ROWS }, () => Array(COLS).fill(null))
   );
   const [piece, setPiece] = useState(randomPiece());
+  const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const dropInterval = useRef(null);
   const holdRefs = useRef({});
+  const SOFT_DROP_INTERVAL = 50;
 
   const rotate = (p) => {
     const rotated = p.shape[0].map((_, i) =>
@@ -113,7 +115,8 @@ export default function Tetris() {
         clearInterval(dropInterval.current);
       }
       setBoard(cleared);
-      setPiece(randomPiece());
+      setPiece(nextPiece);
+      setNextPiece(randomPiece());
     } else {
       setPiece(newPiece);
     }
@@ -135,7 +138,8 @@ export default function Tetris() {
       newPiece.y++;
     }
     setBoard(clearLines(merge(newPiece, board)));
-    setPiece(randomPiece());
+    setPiece(nextPiece);
+    setNextPiece(randomPiece());
   };
 
   // ---- Keyboard controls ----
@@ -161,9 +165,7 @@ export default function Tetris() {
     }
   }, [gameOver]);
 
-  // ---- Mobile on-screen buttons & hold support ----
-  const SOFT_DROP_INTERVAL = 50;
-
+  // ---- Mobile buttons & hold ----
   const startHold = (action) => {
     if (gameOver) return;
 
@@ -203,6 +205,33 @@ export default function Tetris() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
       <h1 className="text-3xl font-bold mb-4">Tetris</h1>
+
+      {/* Next Piece Preview */}
+      <div className="mb-4">
+        <p className="text-lg mb-1">Next:</p>
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(${Math.max(...nextPiece.shape[0].length)}, ${BLOCK_SIZE}px)`,
+            gridTemplateRows: `repeat(${nextPiece.shape.length}, ${BLOCK_SIZE}px)`,
+            border: "1px solid white",
+            display: "inline-grid",
+          }}
+        >
+          {nextPiece.shape.map((row, y) =>
+            row.map((cell, x) => (
+              <motion.div
+                key={`next-${y}-${x}`}
+                className={`w-[${BLOCK_SIZE}px] h-[${BLOCK_SIZE}px] border border-gray-800 ${
+                  cell ? COLORS[nextPiece.type] : "bg-gray-900"
+                }`}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Main Board */}
       <div
         className="grid"
         style={{
@@ -222,6 +251,7 @@ export default function Tetris() {
           ))
         )}
       </div>
+
       <p className="mt-4 text-xl">Score: {score}</p>
       {gameOver && (
         <p className="mt-2 text-red-400 text-lg">
