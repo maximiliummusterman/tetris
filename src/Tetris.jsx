@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 10;
 const ROWS = 20;
-const NEXT_GRID_SIZE = 4; // Fixed 4x4 next grid
+const NEXT_GRID_SIZE = 4; // fixed 4x4 grid for next piece
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
@@ -304,7 +304,7 @@ export default function Tetris() {
           onTouchStart={rotateControl}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
-          ↩
+          ↺
         </button>
         <button
           onTouchStart={() => startHold("right")}
