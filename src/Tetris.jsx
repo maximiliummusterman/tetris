@@ -61,7 +61,7 @@ export default function Tetris() {
   const autoDropRef = useRef(null);
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
-  const landingRef = useRef(false); // fixes hold left/right issue
+  const landingRef = useRef(false); // block moves while landing
 
   const noHighlightStyle = {
     userSelect: "none",
@@ -126,38 +126,39 @@ export default function Tetris() {
     return newBoard;
   };
 
+  // Drop a piece
   const drop = useCallback(() => {
     if (gameOver) return;
 
-    setPiece((prevPiece) => {
-      const nextPos = { ...prevPiece, y: prevPiece.y + 1 };
-
+    setPiece((prev) => {
+      const nextPos = { ...prev, y: prev.y + 1 };
       if (collides(nextPos, board)) {
-        landingRef.current = true; // block holds temporarily
+        landingRef.current = true; // block moves while landing
 
         setBoard((prevBoard) => {
-          const merged = merge(prevPiece, prevBoard);
+          const merged = merge(prev, prevBoard);
           return clearLines(merged);
         });
 
-        if (prevPiece.y === 0) {
+        if (prev.y === 0) {
           clearInterval(autoDropRef.current);
           setGameOver(true);
         } else {
-          // Spawn next piece
-          setPiece(nextPiece);
-          setNextPiece(randomPiece());
+          // Spawn next piece safely
+          setTimeout(() => {
+            setPiece(nextPiece);
+            setNextPiece(randomPiece());
+            landingRef.current = false; // allow moves now
+          }, 0);
         }
 
-        setTimeout(() => (landingRef.current = false), 0);
-
-        return prevPiece;
+        return prev;
       }
-
       return nextPos;
     });
   }, [board, nextPiece, gameOver]);
 
+  // Auto drop interval
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
@@ -210,7 +211,7 @@ export default function Tetris() {
     if (holdRefs.current[dir]) return;
     move(dir);
     holdRefs.current[dir] = setInterval(() => {
-      if (!landingRef.current) move(dir);
+      move(dir);
     }, 150);
   };
   const stopHold = (dir) => {
