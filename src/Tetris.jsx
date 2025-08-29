@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 
 const COLS = 10;
 const ROWS = 20;
-const NEXT_SIZE = 4;
 const DROP_INTERVAL = 600;
+const BLOCK_SIZE = 30;
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
@@ -51,15 +51,13 @@ function randomPiece() {
 
 export default function Tetris() {
   const [board, setBoard] = useState(Array.from({ length: ROWS }, () => Array(COLS).fill(null)));
+  const [piece, setPiece] = useState(randomPiece());
+  const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  const [blockSize, setBlockSize] = useState(30);
 
-  const pieceRef = useRef(randomPiece());
-  const nextRef = useRef(randomPiece());
-  const moveRef = useRef(0); // -1 left, 1 right
-  const softDropRef = useRef(false);
-  const lastDropRef = useRef(Date.now());
+  const moveDir = useRef(0); // -1 left, 1 right
+  const softDrop = useRef(false);
 
   // Prevent scrolling
   useEffect(() => {
@@ -71,26 +69,16 @@ export default function Tetris() {
     };
   }, []);
 
-  // Compute block size
-  useEffect(() => {
-    const headerHeight = 100;
-    const buttonsHeight = 120;
-    const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
-    const availableWidth = window.innerWidth - NEXT_SIZE * 30 - 20;
-    setBlockSize(Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30)));
-  }, []);
-
-  const collides = (p, brd) =>
+  const collides = (p, brd = board) =>
     p.shape.some((row, dy) =>
       row.some(
         (cell, dx) =>
-          cell &&
-          (brd[p.y + dy]?.[p.x + dx] !== null || p.y + dy >= ROWS || p.x + dx < 0 || p.x + dx >= COLS)
+          cell && (brd[p.y + dy]?.[p.x + dx] !== null || p.y + dy >= ROWS || p.x + dx < 0 || p.x + dx >= COLS)
       )
     );
 
   const merge = (p, brd) => {
-    const copy = brd.map((row) => [...row]);
+    const copy = brd.map((r) => [...r]);
     p.shape.forEach((row, dy) =>
       row.forEach((cell, dx) => {
         if (cell) copy[p.y + dy][p.x + dx] = p.type;
@@ -102,7 +90,7 @@ export default function Tetris() {
   const clearLines = (brd) => {
     let cleared = 0;
     const newBoard = brd.filter((row) => {
-      if (row.every((cell) => cell !== null)) {
+      if (row.every((c) => c !== null)) {
         cleared++;
         return false;
       }
@@ -114,63 +102,72 @@ export default function Tetris() {
   };
 
   const spawnNext = () => {
-    pieceRef.current = nextRef.current;
-    nextRef.current = randomPiece();
-    if (collides(pieceRef.current, board)) setGameOver(true);
+    setPiece(nextPiece);
+    setNextPiece(randomPiece());
   };
 
-  const dropPiece = () => {
-    const p = pieceRef.current;
-    const newP = { ...p, y: p.y + 1 };
-    if (collides(newP, board)) {
-      setBoard((b) => clearLines(merge(p, b)));
-      spawnNext();
-    } else {
-      pieceRef.current = newP;
-    }
+  const rotate = (p) => {
+    const rotated = p.shape[0].map((_, i) => p.shape.map((row) => row[i]).reverse());
+    return { ...p, shape: rotated };
   };
 
   const movePiece = (dx) => {
-    const p = pieceRef.current;
-    const newP = { ...p, x: p.x + dx };
-    if (!collides(newP, board)) pieceRef.current = newP;
+    setPiece((prev) => {
+      const moved = { ...prev, x: prev.x + dx };
+      return collides(moved) ? prev : moved;
+    });
   };
 
   const rotatePiece = () => {
-    const p = pieceRef.current;
-    const rotated = p.shape[0].map((_, i) => p.shape.map((row) => row[i]).reverse());
-    const newP = { ...p, shape: rotated };
-    if (!collides(newP, board)) pieceRef.current = newP;
+    setPiece((prev) => {
+      const r = rotate(prev);
+      return collides(r) ? prev : r;
+    });
+  };
+
+  const dropPiece = () => {
+    setPiece((prev) => {
+      const down = { ...prev, y: prev.y + 1 };
+      if (collides(down)) {
+        setBoard((b) => {
+          const merged = merge(prev, b);
+          const cleared = clearLines(merged);
+          if (prev.y === 0) setGameOver(true);
+          return cleared;
+        });
+        spawnNext();
+        return prev;
+      }
+      return down;
+    });
   };
 
   const hardDrop = () => {
-    let p = pieceRef.current;
-    while (!collides({ ...p, y: p.y + 1 }, board)) p.y++;
-    setBoard((b) => clearLines(merge(p, b)));
-    spawnNext();
+    setPiece((prev) => {
+      let p = { ...prev };
+      while (!collides({ ...p, y: p.y + 1 })) p.y++;
+      setBoard((b) => clearLines(merge(p, b)));
+      spawnNext();
+      return p;
+    });
   };
 
-  // Main loop
+  // Main game loop
   useEffect(() => {
-    let animation = requestAnimationFrame(function loop() {
-      if (!gameOver) {
-        const now = Date.now();
-        if (now - lastDropRef.current > DROP_INTERVAL || softDropRef.current) {
-          dropPiece();
-          lastDropRef.current = now;
-        }
-        if (moveRef.current !== 0) movePiece(moveRef.current);
-      }
-      animation = requestAnimationFrame(loop);
-    });
-    return () => cancelAnimationFrame(animation);
+    if (gameOver) return;
+    const interval = setInterval(() => {
+      if (moveDir.current !== 0) movePiece(moveDir.current);
+      if (softDrop.current) dropPiece();
+      dropPiece();
+    }, DROP_INTERVAL);
+    return () => clearInterval(interval);
   }, [gameOver]);
 
   // Render board
   const displayBoard = board.map((row) => [...row]);
-  pieceRef.current.shape.forEach((r, dy) =>
+  piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
-      if (c && pieceRef.current.y + dy >= 0) displayBoard[pieceRef.current.y + dy][pieceRef.current.x + dx] = pieceRef.current.type;
+      if (c && piece.y + dy >= 0) displayBoard[piece.y + dy][piece.x + dx] = piece.type;
     })
   );
 
@@ -189,8 +186,8 @@ export default function Tetris() {
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
-            gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
+            gridTemplateColumns: `repeat(${COLS}, ${BLOCK_SIZE}px)`,
+            gridTemplateRows: `repeat(${ROWS}, ${BLOCK_SIZE}px)`,
             border: "2px solid white",
           }}
         >
@@ -199,8 +196,8 @@ export default function Tetris() {
               <div
                 key={`${y}-${x}`}
                 style={{
-                  width: blockSize,
-                  height: blockSize,
+                  width: BLOCK_SIZE,
+                  height: BLOCK_SIZE,
                   border: "1px solid #333",
                   backgroundColor: cell ? COLORS[cell] : "#111",
                 }}
@@ -209,29 +206,27 @@ export default function Tetris() {
           )}
         </div>
 
-        {/* Right panel */}
+        {/* Next panel + buttons */}
         <div className="flex flex-col items-center gap-4">
           <p className="text-lg mb-1">Next:</p>
           <div
             className="inline-grid border border-white"
             style={{
-              gridTemplateColumns: `repeat(${NEXT_SIZE}, ${blockSize}px)`,
-              gridTemplateRows: `repeat(${NEXT_SIZE}, ${blockSize}px)`,
-              justifyContent: "center",
-              alignContent: "center",
+              gridTemplateColumns: `repeat(${NEXT_SIZE}, ${BLOCK_SIZE}px)`,
+              gridTemplateRows: `repeat(${NEXT_SIZE}, ${BLOCK_SIZE}px)`,
             }}
           >
             {Array.from({ length: NEXT_SIZE }).map((_, y) =>
               Array.from({ length: NEXT_SIZE }).map((_, x) => {
-                const cell = nextRef.current.shape[y] && nextRef.current.shape[y][x] ? nextRef.current.shape[y][x] : 0;
+                const cell = nextPiece.shape[y] && nextPiece.shape[y][x] ? nextPiece.shape[y][x] : 0;
                 return (
                   <div
                     key={`next-${y}-${x}`}
                     style={{
-                      width: blockSize,
-                      height: blockSize,
+                      width: BLOCK_SIZE,
+                      height: BLOCK_SIZE,
                       border: "1px solid #333",
-                      backgroundColor: cell ? COLORS[nextRef.current.type] : "#111",
+                      backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
                     }}
                   />
                 );
@@ -245,16 +240,16 @@ export default function Tetris() {
           <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(2, auto)" }}>
             <button
               style={buttonStyle}
-              onMouseDown={() => (moveRef.current = -1)}
-              onMouseUp={() => (moveRef.current = 0)}
-              onMouseLeave={() => (moveRef.current = 0)}
+              onMouseDown={() => (moveDir.current = -1)}
+              onMouseUp={() => (moveDir.current = 0)}
+              onMouseLeave={() => (moveDir.current = 0)}
               onTouchStart={(e) => {
                 e.preventDefault();
-                moveRef.current = -1;
+                moveDir.current = -1;
               }}
               onTouchEnd={(e) => {
                 e.preventDefault();
-                moveRef.current = 0;
+                moveDir.current = 0;
               }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
@@ -262,16 +257,16 @@ export default function Tetris() {
             </button>
             <button
               style={buttonStyle}
-              onMouseDown={() => (moveRef.current = 1)}
-              onMouseUp={() => (moveRef.current = 0)}
-              onMouseLeave={() => (moveRef.current = 0)}
+              onMouseDown={() => (moveDir.current = 1)}
+              onMouseUp={() => (moveDir.current = 0)}
+              onMouseLeave={() => (moveDir.current = 0)}
               onTouchStart={(e) => {
                 e.preventDefault();
-                moveRef.current = 1;
+                moveDir.current = 1;
               }}
               onTouchEnd={(e) => {
                 e.preventDefault();
-                moveRef.current = 0;
+                moveDir.current = 0;
               }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
@@ -290,16 +285,16 @@ export default function Tetris() {
             </button>
             <button
               style={buttonStyle}
-              onMouseDown={() => (softDropRef.current = true)}
-              onMouseUp={() => (softDropRef.current = false)}
-              onMouseLeave={() => (softDropRef.current = false)}
+              onMouseDown={() => (softDrop.current = true)}
+              onMouseUp={() => (softDrop.current = false)}
+              onMouseLeave={() => (softDrop.current = false)}
               onTouchStart={(e) => {
                 e.preventDefault();
-                softDropRef.current = true;
+                softDrop.current = true;
               }}
               onTouchEnd={(e) => {
                 e.preventDefault();
-                softDropRef.current = false;
+                softDrop.current = false;
               }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
