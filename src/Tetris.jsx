@@ -41,6 +41,15 @@ const COLORS = {
   J: "#3b82f6",
   L: "#f97316",
 };
+const GHOST_COLORS = {
+  I: "rgba(6, 182, 212, 0.3)",
+  O: "rgba(250, 204, 21, 0.3)",
+  T: "rgba(168, 85, 247, 0.3)",
+  S: "rgba(34, 197, 94, 0.3)",
+  Z: "rgba(239, 68, 68, 0.3)",
+  J: "rgba(59, 130, 246, 0.3)",
+  L: "rgba(249, 115, 22, 0.3)",
+};
 
 function randomPiece() {
   const keys = Object.keys(SHAPES);
@@ -56,12 +65,12 @@ export default function Tetris() {
   const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  const [blockSize, setBlockSize] = useState(24); // auto-sized below
+  const [blockSize, setBlockSize] = useState(24);
 
   const autoDropRef = useRef(null);
-  const holdRefs = useRef({}); // {-1: intervalId, 1: intervalId}
+  const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
-  const landingRef = useRef(false); // block inputs during landing/ spawn
+  const landingRef = useRef(false);
   const boardRef = useRef(board);
   useEffect(() => {
     boardRef.current = board;
@@ -77,39 +86,24 @@ export default function Tetris() {
     caretColor: "transparent",
   };
 
-  // Prevent scrolling & center with small viewport height on iOS
-  useEffect(() => {
-    const elHtml = document.documentElement;
-    const elBody = document.body;
-    elHtml.style.overflow = "hidden";
-    elBody.style.overflow = "hidden";
-    elHtml.style.height = "100%";
-    elBody.style.height = "100%";
-    elHtml.style.overscrollBehavior = "none";
-    elBody.style.overscrollBehavior = "none";
+  // Reset game
+  const resetGame = () => {
+    setBoard(Array.from({ length: ROWS }, () => Array(COLS).fill(null)));
+    setPiece(randomPiece());
+    setNextPiece(randomPiece());
+    setScore(0);
+    setGameOver(false);
+  };
 
-    return () => {
-      elHtml.style.overflow = "";
-      elBody.style.overflow = "";
-      elHtml.style.height = "";
-      elBody.style.height = "";
-      elHtml.style.overscrollBehavior = "";
-      elBody.style.overscrollBehavior = "";
-    };
-  }, []);
-
-  // Auto-calc block size so the whole layout fits and stays centered
+  // Block sizing
   const recalcBlockSize = useCallback(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // Horizontal fit: board (COLS) + gap columns (~2) + next grid (4)
     const sizeByWidth = Math.floor(vw / (COLS + NEXT_GRID_SIZE + 2));
-    // Vertical fit: rows
-    const sizeByHeight = Math.floor(vh / (ROWS + 4)); // + a little headroom for title/buttons
+    const sizeByHeight = Math.floor(vh / (ROWS + 4));
     const size = Math.max(14, Math.min(30, sizeByWidth, sizeByHeight));
     setBlockSize(size);
   }, []);
-
   useEffect(() => {
     recalcBlockSize();
     window.addEventListener("resize", recalcBlockSize);
@@ -138,6 +132,7 @@ export default function Tetris() {
     return copy;
   };
 
+  // enhanced scoring
   const clearLines = (brd) => {
     let cleared = 0;
     const newBoard = brd.filter((row) => {
@@ -148,41 +143,28 @@ export default function Tetris() {
       return true;
     });
     while (newBoard.length < ROWS) newBoard.unshift(Array(COLS).fill(null));
-    if (cleared > 0) setScore((s) => s + cleared * 100);
+    if (cleared > 0) {
+      const points = [0, 100, 300, 500, 800];
+      setScore((s) => s + points[cleared]);
+    }
     return newBoard;
   };
 
-  // Drop with landing guard; spawn next piece after board update; never black screen
   const drop = useCallback(() => {
     if (gameOver) return;
-
     setPiece((prev) => {
       const nextPos = { ...prev, y: prev.y + 1 };
-
       if (collides(nextPos, board)) {
         landingRef.current = true;
-
-        // Merge current piece into the board first
-        setBoard((prevBoard) => {
-          const merged = merge(prev, prevBoard);
-          return clearLines(merged);
-        });
-
-        // If stuck at top, game over
+        setBoard((prevBoard) => clearLines(merge(prev, prevBoard)));
         if (prev.y === 0) {
           clearInterval(autoDropRef.current);
           setGameOver(true);
-          // let the merged piece remain visible
-          setTimeout(() => {
-            landingRef.current = false;
-          }, 0);
+          setTimeout(() => (landingRef.current = false), 0);
           return prev;
         }
-
-        // Spawn next piece in a separate tick; also guard against immediate game over
         setTimeout(() => {
           if (gameOver) return;
-          // If next piece immediately collides with current board, it's game over
           if (collides(nextPiece, boardRef.current)) {
             setGameOver(true);
             return;
@@ -191,19 +173,30 @@ export default function Tetris() {
           setNextPiece(randomPiece());
           landingRef.current = false;
         }, 0);
-
         return prev;
       }
-
       return nextPos;
     });
   }, [board, nextPiece, gameOver]);
 
-  // Auto drop interval
+  // Auto drop + soft drop fix
   useEffect(() => {
+    if (softDropping) return;
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
-  }, [drop]);
+  }, [softDropping, drop]);
+
+  // Soft drop loop
+  useEffect(() => {
+    if (!softDropping || gameOver) return;
+    let t;
+    const loop = () => {
+      drop();
+      t = setTimeout(loop, 50);
+    };
+    loop();
+    return () => clearTimeout(t);
+  }, [softDropping, drop, gameOver]);
 
   const move = (dx) => {
     if (gameOver || landingRef.current) return;
@@ -230,7 +223,6 @@ export default function Tetris() {
       let newPiece = { ...prev };
       while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
       setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
-      // Spawn next; if it immediately collides, game over
       setTimeout(() => {
         if (collides(nextPiece, boardRef.current)) {
           setGameOver(true);
@@ -243,32 +235,16 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop loop
-  useEffect(() => {
-    if (!softDropping || gameOver) return;
-    let t;
-    const loop = () => {
-      drop();
-      t = setTimeout(loop, 50);
-    };
-    loop();
-    return () => clearTimeout(t);
-  }, [softDropping, drop, gameOver]);
-
-  // Hold left/right buttons
-  const startHold = (dir) => {
-    if (holdRefs.current[dir]) return;
-    move(dir);
-    holdRefs.current[dir] = setInterval(() => move(dir), 130);
-  };
-  const stopHold = (dir) => {
-    if (holdRefs.current[dir]) {
-      clearInterval(holdRefs.current[dir]);
-      holdRefs.current[dir] = null;
+  // Ghost piece calculation
+  const ghostPiece = (() => {
+    let ghost = { ...piece };
+    while (!collides({ ...ghost, y: ghost.y + 1 }, board)) {
+      ghost.y++;
     }
-  };
+    return ghost;
+  })();
 
-  // Keyboard controls (PC)
+  // Keyboard
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
@@ -282,8 +258,23 @@ export default function Tetris() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [drop, gameOver]);
 
-  // Render board with active piece
+  // Display board
   const displayBoard = board.map((row) => [...row]);
+
+  // ghost first
+  ghostPiece.shape.forEach((r, dy) =>
+    r.forEach((c, dx) => {
+      if (c && ghostPiece.y + dy >= 0) {
+        const y = ghostPiece.y + dy;
+        const x = ghostPiece.x + dx;
+        if (displayBoard[y] && displayBoard[y][x] === null) {
+          displayBoard[y][x] = `ghost-${piece.type}`;
+        }
+      }
+    })
+  );
+
+  // then active piece
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
       if (c && piece.y + dy >= 0) {
@@ -296,38 +287,31 @@ export default function Tetris() {
     })
   );
 
-  // Reusable SVG icon button (prevents iOS text selection issues)
-  const IconButton = ({ onDown, onUp, onLeave, label, children }) => (
-    <button
-      aria-label={label}
-      role="button"
-      onPointerDown={(e) => {
-        e.preventDefault();
-        onDown && onDown();
-      }}
-      onPointerUp={(e) => {
-        e.preventDefault();
-        onUp && onUp();
-      }}
-      onPointerLeave={(e) => {
-        e.preventDefault();
-        onLeave && onLeave();
-      }}
-      onContextMenu={(e) => e.preventDefault()}
-      className="px-4 py-3 bg-gray-700 rounded-lg text-white text-xl flex items-center justify-center"
-      style={{ ...noHighlightStyle, touchAction: "none" }}
-    >
-      {children}
-    </button>
-  );
+  // helper to center next piece in preview grid
+  const getNextGrid = () => {
+    const grid = Array.from({ length: NEXT_GRID_SIZE }, () =>
+      Array(NEXT_GRID_SIZE).fill(null)
+    );
+    const offsetY = Math.floor(
+      (NEXT_GRID_SIZE - nextPiece.shape.length) / 2
+    );
+    const offsetX = Math.floor(
+      (NEXT_GRID_SIZE - nextPiece.shape[0].length) / 2
+    );
+    nextPiece.shape.forEach((row, y) =>
+      row.forEach((c, x) => {
+        if (c) grid[offsetY + y][offsetX + x] = nextPiece.type;
+      })
+    );
+    return grid;
+  };
 
   return (
     <div
       className="bg-gray-900 text-white"
-      onContextMenu={(e) => e.preventDefault()}
       style={{
         ...noHighlightStyle,
-        height: "100svh", // better on iOS Safari than 100vh
+        height: "100svh",
         width: "100vw",
         overflow: "hidden",
         display: "flex",
@@ -335,7 +319,6 @@ export default function Tetris() {
         justifyContent: "center",
       }}
     >
-      {/* Centered column (title + game area) */}
       <div className="flex flex-col items-center justify-center">
         <h1 className="text-3xl font-bold text-center mb-2 mt-0">Tetris</h1>
 
@@ -357,7 +340,11 @@ export default function Tetris() {
                     width: blockSize,
                     height: blockSize,
                     border: "1px solid #333",
-                    backgroundColor: cell ? COLORS[cell] : "#111",
+                    backgroundColor: cell
+                      ? cell.startsWith("ghost-")
+                        ? GHOST_COLORS[cell.split("-")[1]]
+                        : COLORS[cell]
+                      : "#111",
                   }}
                 />
               ))
@@ -372,127 +359,37 @@ export default function Tetris() {
               style={{
                 gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
                 gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
-                justifyContent: "center",
-                alignContent: "center",
               }}
             >
-              {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
-                Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
-                  const cell =
-                    nextPiece.shape[y] && nextPiece.shape[y][x]
-                      ? nextPiece.shape[y][x]
-                      : 0;
-                  return (
-                    <div
-                      key={`next-${y}-${x}`}
-                      style={{
-                        width: blockSize,
-                        height: blockSize,
-                        border: "1px solid #333",
-                        backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
-                      }}
-                    />
-                  );
-                })
+              {getNextGrid().map((row, y) =>
+                row.map((cell, x) => (
+                  <div
+                    key={`next-${y}-${x}`}
+                    style={{
+                      width: blockSize,
+                      height: blockSize,
+                      border: "1px solid #333",
+                      backgroundColor: cell ? COLORS[cell] : "#111",
+                    }}
+                  />
+                ))
               )}
             </div>
 
             <p className="mt-2 text-lg">Score: {score}</p>
-
-            {/* 2x2 Buttons under Next */}
-            <div
-              className="grid gap-2 mt-4"
-              style={{
-                gridTemplateColumns: "repeat(2, auto)",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              {/* Left */}
-              <IconButton
-                label="Move Left"
-                onDown={() => startHold(-1)}
-                onUp={() => stopHold(-1)}
-                onLeave={() => stopHold(-1)}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24">
-                  <path
-                    d="M14 6l-6 6 6 6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </IconButton>
-
-              {/* Right */}
-              <IconButton
-                label="Move Right"
-                onDown={() => startHold(1)}
-                onUp={() => stopHold(1)}
-                onLeave={() => stopHold(1)}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24">
-                  <path
-                    d="M10 6l6 6-6 6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </IconButton>
-
-              {/* Rotate */}
-              <IconButton label="Rotate" onDown={rotatePiece}>
-                <svg width="24" height="24" viewBox="0 0 24 24">
-                  <path
-                    d="M4 12a8 8 0 1 1 8 8"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M12 4v4H8"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </IconButton>
-
-              {/* Soft Drop (hold) */}
-              <IconButton
-                label="Soft Drop"
-                onDown={() => setSoftDropping(true)}
-                onUp={() => setSoftDropping(false)}
-                onLeave={() => setSoftDropping(false)}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24">
-                  <path
-                    d="M12 5v14M6 13l6 6 6-6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </IconButton>
-            </div>
           </div>
         </div>
 
         {gameOver && (
-          <p className="mt-3 text-red-400 text-center text-lg">
-            Game Over! Refresh to restart.
-          </p>
+          <div className="mt-3 flex flex-col items-center">
+            <p className="text-red-400 text-lg">Game Over!</p>
+            <button
+              onClick={resetGame}
+              className="mt-2 px-4 py-2 bg-green-600 rounded-lg text-white"
+            >
+              Restart
+            </button>
+          </div>
         )}
       </div>
     </div>
