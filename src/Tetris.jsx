@@ -60,11 +60,19 @@ export default function Tetris() {
   const SOFT_DROP_INTERVAL = 50;
   const [blockSize, setBlockSize] = useState(30);
 
-  // Dynamically calculate block size to fit mobile
+  // Compute block size to fit mobile viewport
   useEffect(() => {
     const calculateSize = () => {
-      const maxHeight = window.innerHeight * 0.8;
-      setBlockSize(Math.floor(Math.min(30, maxHeight / ROWS)));
+      const headerHeight = 100; // approximate header and UI height
+      const nextPieceHeight = 80;
+      const buttonsHeight = 80;
+      const availableHeight =
+        window.innerHeight - headerHeight - nextPieceHeight - buttonsHeight;
+      const availableWidth = window.innerWidth - 20; // some padding
+      const size = Math.floor(
+        Math.min(availableHeight / ROWS, availableWidth / COLS)
+      );
+      setBlockSize(size);
     };
     calculateSize();
     window.addEventListener("resize", calculateSize);
@@ -121,20 +129,24 @@ export default function Tetris() {
 
   const drop = useCallback(() => {
     setPiece((prevPiece) => {
-      setBoard((prevBoard) => {
-        const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
-        if (collides(newPiece, prevBoard)) {
+      if (gameOver) return prevPiece;
+      // Check collision without updating y
+      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
+      if (collides(newPiece, board)) {
+        // Merge current piece into board
+        setBoard((prevBoard) => {
           const merged = merge(prevPiece, prevBoard);
           const cleared = clearLines(merged);
           if (prevPiece.y === 0) setGameOver(true);
-          spawnNextPiece();
           return cleared;
-        }
-        return prevBoard;
-      });
-      return { ...prevPiece, y: prevPiece.y + 1 };
+        });
+        spawnNextPiece();
+        return prevPiece; // do not move down
+      } else {
+        return newPiece;
+      }
     });
-  }, [spawnNextPiece]);
+  }, [board, spawnNextPiece, gameOver]);
 
   const move = (dx) => {
     setPiece((prev) => {
@@ -206,19 +218,20 @@ export default function Tetris() {
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
-      if (c && piece.y + dy >= 0) displayBoard[piece.y + dy][piece.x + dx] = piece.type;
+      if (c && piece.y + dy >= 0)
+        displayBoard[piece.y + dy][piece.x + dx] = piece.type;
     })
   );
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
-      <h1 className="text-3xl font-bold mb-4">Tetris</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900 px-2">
+      <h1 className="text-3xl font-bold mb-2 text-center">Tetris</h1>
 
       {/* Next piece */}
-      <div className="mb-4">
+      <div className="mb-2 text-center">
         <p className="text-lg mb-1">Next:</p>
         <div
-          className="inline-grid border border-white"
+          className="inline-grid border border-white mx-auto"
           style={{
             gridTemplateColumns: `repeat(${nextPiece.shape[0].length}, ${blockSize}px)`,
             gridTemplateRows: `repeat(${nextPiece.shape.length}, ${blockSize}px)`,
@@ -264,13 +277,15 @@ export default function Tetris() {
         )}
       </div>
 
-      <p className="mt-4 text-xl">Score: {score}</p>
+      <p className="mt-2 text-lg text-center">Score: {score}</p>
       {gameOver && (
-        <p className="mt-2 text-red-400 text-lg">Game Over! Refresh to restart.</p>
+        <p className="mt-2 text-red-400 text-center text-lg">
+          Game Over! Refresh to restart.
+        </p>
       )}
 
       {/* Mobile buttons */}
-      <div className="flex gap-4 mt-4">
+      <div className="flex gap-2 mt-2 flex-wrap justify-center">
         <button
           onTouchStart={() => startHold("left")}
           onTouchEnd={() => endHold("left")}
