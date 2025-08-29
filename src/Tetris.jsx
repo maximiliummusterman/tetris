@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 10;
 const ROWS = 20;
+const NEXT_GRID_SIZE = 4; // Fixed 4x4 next grid
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
@@ -60,20 +61,20 @@ export default function Tetris() {
   const SOFT_DROP_INTERVAL = 50;
   const [blockSize, setBlockSize] = useState(30);
 
-  // Compute block size to fit mobile viewport
+  // Disable page scroll and calculate block size once
   useEffect(() => {
-    const calculateSize = () => {
-      const headerHeight = 100;
-      const buttonsHeight = 80;
-      const nextWidth = 4 * 30; // approximate next piece width
-      const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
-      const availableWidth = window.innerWidth - nextWidth - 20;
-      const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
-      setBlockSize(size);
+    document.body.style.overflow = "hidden";
+
+    const headerHeight = 100;
+    const buttonsHeight = 80;
+    const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
+    const availableWidth = window.innerWidth - NEXT_GRID_SIZE * 30 - 20;
+    const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
+    setBlockSize(size);
+
+    return () => {
+      document.body.style.overflow = "auto";
     };
-    calculateSize();
-    window.addEventListener("resize", calculateSize);
-    return () => window.removeEventListener("resize", calculateSize);
   }, []);
 
   const rotate = (p) => {
@@ -222,7 +223,7 @@ export default function Tetris() {
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900 px-2">
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
-      {/* Game area: main board + next piece */}
+      {/* Game area */}
       <div className="flex flex-row gap-4">
         {/* Main Board */}
         <div
@@ -254,22 +255,30 @@ export default function Tetris() {
           <div
             className="inline-grid border border-white"
             style={{
-              gridTemplateColumns: `repeat(${nextPiece.shape[0].length}, ${blockSize}px)`,
-              gridTemplateRows: `repeat(${nextPiece.shape.length}, ${blockSize}px)`,
+              gridTemplateColumns: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              gridTemplateRows: `repeat(${NEXT_GRID_SIZE}, ${blockSize}px)`,
+              justifyContent: "center",
+              alignContent: "center",
             }}
           >
-            {nextPiece.shape.map((row, y) =>
-              row.map((cell, x) => (
-                <div
-                  key={`next-${y}-${x}`}
-                  style={{
-                    width: blockSize,
-                    height: blockSize,
-                    border: "1px solid #333",
-                    backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
-                  }}
-                />
-              ))
+            {Array.from({ length: NEXT_GRID_SIZE }).map((_, y) =>
+              Array.from({ length: NEXT_GRID_SIZE }).map((_, x) => {
+                const cell =
+                  nextPiece.shape[y] && nextPiece.shape[y][x]
+                    ? nextPiece.shape[y][x]
+                    : 0;
+                return (
+                  <div
+                    key={`next-${y}-${x}`}
+                    style={{
+                      width: blockSize,
+                      height: blockSize,
+                      border: "1px solid #333",
+                      backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
+                    }}
+                  />
+                );
+              })
             )}
           </div>
           <p className="mt-2 text-lg">Score: {score}</p>
@@ -289,27 +298,27 @@ export default function Tetris() {
           onTouchEnd={() => endHold("left")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
-          ◀️
+          ←
         </button>
         <button
           onTouchStart={rotateControl}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
-          🔄
+          ↩
         </button>
         <button
           onTouchStart={() => startHold("right")}
           onTouchEnd={() => endHold("right")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
-          ▶️
+          →
         </button>
         <button
           onTouchStart={() => startHold("drop")}
           onTouchEnd={() => endHold("drop")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
-          ⬇️
+          ↓
         </button>
       </div>
     </div>
