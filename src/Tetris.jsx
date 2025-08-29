@@ -63,15 +63,12 @@ export default function Tetris() {
   // Compute block size to fit mobile viewport
   useEffect(() => {
     const calculateSize = () => {
-      const headerHeight = 100; // approximate header and UI height
-      const nextPieceHeight = 80;
+      const headerHeight = 100;
       const buttonsHeight = 80;
-      const availableHeight =
-        window.innerHeight - headerHeight - nextPieceHeight - buttonsHeight;
-      const availableWidth = window.innerWidth - 20; // some padding
-      const size = Math.floor(
-        Math.min(availableHeight / ROWS, availableWidth / COLS)
-      );
+      const nextWidth = 4 * 30; // approximate next piece width
+      const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
+      const availableWidth = window.innerWidth - nextWidth - 20;
+      const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
       setBlockSize(size);
     };
     calculateSize();
@@ -130,10 +127,8 @@ export default function Tetris() {
   const drop = useCallback(() => {
     setPiece((prevPiece) => {
       if (gameOver) return prevPiece;
-      // Check collision without updating y
       const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
       if (collides(newPiece, board)) {
-        // Merge current piece into board
         setBoard((prevBoard) => {
           const merged = merge(prevPiece, prevBoard);
           const cleared = clearLines(merged);
@@ -141,7 +136,7 @@ export default function Tetris() {
           return cleared;
         });
         spawnNextPiece();
-        return prevPiece; // do not move down
+        return prevPiece;
       } else {
         return newPiece;
       }
@@ -225,59 +220,62 @@ export default function Tetris() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900 px-2">
-      <h1 className="text-3xl font-bold mb-2 text-center">Tetris</h1>
+      <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
-      {/* Next piece */}
-      <div className="mb-2 text-center">
-        <p className="text-lg mb-1">Next:</p>
+      {/* Game area: main board + next piece */}
+      <div className="flex flex-row gap-4">
+        {/* Main Board */}
         <div
-          className="inline-grid border border-white mx-auto"
+          className="grid"
           style={{
-            gridTemplateColumns: `repeat(${nextPiece.shape[0].length}, ${blockSize}px)`,
-            gridTemplateRows: `repeat(${nextPiece.shape.length}, ${blockSize}px)`,
+            gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
+            gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
+            border: "2px solid white",
           }}
         >
-          {nextPiece.shape.map((row, y) =>
+          {displayBoard.map((row, y) =>
             row.map((cell, x) => (
               <div
-                key={`next-${y}-${x}`}
+                key={`${y}-${x}`}
                 style={{
                   width: blockSize,
                   height: blockSize,
                   border: "1px solid #333",
-                  backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
+                  backgroundColor: cell ? COLORS[cell] : "#111",
                 }}
               />
             ))
           )}
         </div>
+
+        {/* Next Piece + Score */}
+        <div className="flex flex-col items-center">
+          <p className="text-lg mb-1">Next:</p>
+          <div
+            className="inline-grid border border-white"
+            style={{
+              gridTemplateColumns: `repeat(${nextPiece.shape[0].length}, ${blockSize}px)`,
+              gridTemplateRows: `repeat(${nextPiece.shape.length}, ${blockSize}px)`,
+            }}
+          >
+            {nextPiece.shape.map((row, y) =>
+              row.map((cell, x) => (
+                <div
+                  key={`next-${y}-${x}`}
+                  style={{
+                    width: blockSize,
+                    height: blockSize,
+                    border: "1px solid #333",
+                    backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
+                  }}
+                />
+              ))
+            )}
+          </div>
+          <p className="mt-2 text-lg">Score: {score}</p>
+        </div>
       </div>
 
-      {/* Main Board */}
-      <div
-        className="grid"
-        style={{
-          gridTemplateColumns: `repeat(${COLS}, ${blockSize}px)`,
-          gridTemplateRows: `repeat(${ROWS}, ${blockSize}px)`,
-          border: "2px solid white",
-        }}
-      >
-        {displayBoard.map((row, y) =>
-          row.map((cell, x) => (
-            <div
-              key={`${y}-${x}`}
-              style={{
-                width: blockSize,
-                height: blockSize,
-                border: "1px solid #333",
-                backgroundColor: cell ? COLORS[cell] : "#111",
-              }}
-            />
-          ))
-        )}
-      </div>
-
-      <p className="mt-2 text-lg text-center">Score: {score}</p>
       {gameOver && (
         <p className="mt-2 text-red-400 text-center text-lg">
           Game Over! Refresh to restart.
@@ -285,7 +283,7 @@ export default function Tetris() {
       )}
 
       {/* Mobile buttons */}
-      <div className="flex gap-2 mt-2 flex-wrap justify-center">
+      <div className="flex gap-2 mt-4 flex-wrap justify-center">
         <button
           onTouchStart={() => startHold("left")}
           onTouchEnd={() => endHold("left")}
