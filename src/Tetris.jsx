@@ -70,7 +70,7 @@ export default function Tetris() {
     document.body.style.height = "100%";
 
     const headerHeight = 100;
-    const buttonsHeight = 80;
+    const buttonsHeight = 100;
     const availableHeight = window.innerHeight - headerHeight - buttonsHeight;
     const availableWidth = window.innerWidth - NEXT_GRID_SIZE * 30 - 20;
     const size = Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS, 30));
@@ -291,8 +291,15 @@ export default function Tetris() {
         <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>
       )}
 
-      {/* Buttons below main + next grid */}
-      <div className="flex gap-2 mt-4 flex-wrap justify-center">
+      {/* 2x2 Buttons grid below next piece */}
+      <div
+        className="grid gap-2 mt-4"
+        style={{
+          gridTemplateColumns: "repeat(2, auto)",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <button
           style={buttonStyle}
           onTouchStart={() => startHold(-1)}
@@ -303,18 +310,18 @@ export default function Tetris() {
         </button>
         <button
           style={buttonStyle}
-          onTouchStart={rotatePiece}
-          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
-        >
-          ↺
-        </button>
-        <button
-          style={buttonStyle}
           onTouchStart={() => startHold(1)}
           onTouchEnd={() => stopHold(1)}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           →
+        </button>
+        <button
+          style={buttonStyle}
+          onTouchStart={rotatePiece}
+          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
+        >
+          ↺
         </button>
         <button
           style={buttonStyle}
