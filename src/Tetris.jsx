@@ -65,6 +65,7 @@ export default function Tetris() {
   const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [blockSize, setBlockSize] = useState(24);
 
   const autoDropRef = useRef(null);
@@ -93,6 +94,7 @@ export default function Tetris() {
     setNextPiece(randomPiece());
     setScore(0);
     setGameOver(false);
+    setPaused(false);
   };
 
   // Block sizing
@@ -150,8 +152,9 @@ export default function Tetris() {
     return newBoard;
   };
 
+  // Drop function
   const drop = useCallback(() => {
-    if (gameOver) return;
+    if (gameOver || paused) return;
     setPiece((prev) => {
       const nextPos = { ...prev, y: prev.y + 1 };
       if (collides(nextPos, board)) {
@@ -177,18 +180,29 @@ export default function Tetris() {
       }
       return nextPos;
     });
-  }, [board, nextPiece, gameOver]);
+  }, [board, nextPiece, gameOver, paused]);
 
-  // Auto drop + soft drop fix
+  // Auto drop speed based on score
+  const getDropInterval = () => {
+    let interval = 600;
+    if (score >= 5000) interval = 550;
+    if (score >= 10000) interval = 500;
+    if (score >= 15000) interval = 450;
+    if (score >= 20000) interval = 400;
+    if (score >= 25000) interval = 350;
+    return Math.max(interval, 300);
+  };
+
   useEffect(() => {
-    if (softDropping) return;
-    autoDropRef.current = setInterval(drop, 600);
+    if (paused || softDropping) return;
+    clearInterval(autoDropRef.current);
+    autoDropRef.current = setInterval(drop, getDropInterval());
     return () => clearInterval(autoDropRef.current);
-  }, [softDropping, drop]);
+  }, [softDropping, drop, paused, score]);
 
   // Soft drop loop
   useEffect(() => {
-    if (!softDropping || gameOver) return;
+    if (!softDropping || gameOver || paused) return;
     let t;
     const loop = () => {
       drop();
@@ -196,10 +210,10 @@ export default function Tetris() {
     };
     loop();
     return () => clearTimeout(t);
-  }, [softDropping, drop, gameOver]);
+  }, [softDropping, drop, gameOver, paused]);
 
   const move = (dx) => {
-    if (gameOver || landingRef.current) return;
+    if (gameOver || landingRef.current || paused) return;
     setPiece((prev) => {
       const newPiece = { ...prev, x: prev.x + dx };
       return collides(newPiece, board) ? prev : newPiece;
@@ -207,7 +221,7 @@ export default function Tetris() {
   };
 
   const rotatePiece = () => {
-    if (gameOver || landingRef.current) return;
+    if (gameOver || landingRef.current || paused) return;
     setPiece((prev) => {
       const rotated = prev.shape[0].map((_, i) =>
         prev.shape.map((row) => row[i]).reverse()
@@ -218,7 +232,7 @@ export default function Tetris() {
   };
 
   const hardDrop = () => {
-    if (gameOver || landingRef.current) return;
+    if (gameOver || landingRef.current || paused) return;
     setPiece((prev) => {
       let newPiece = { ...prev };
       while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
@@ -248,7 +262,7 @@ export default function Tetris() {
     }
   };
 
-  // Ghost piece calculation
+  // Ghost piece
   const ghostPiece = (() => {
     let ghost = { ...piece };
     while (!collides({ ...ghost, y: ghost.y + 1 }, board)) {
@@ -260,7 +274,7 @@ export default function Tetris() {
   // Keyboard
   useEffect(() => {
     const handleKey = (e) => {
-      if (gameOver) return;
+      if (gameOver || paused) return;
       if (e.key === "ArrowLeft") move(-1);
       if (e.key === "ArrowRight") move(1);
       if (e.key === "ArrowDown") drop();
@@ -269,12 +283,10 @@ export default function Tetris() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [drop, gameOver]);
+  }, [drop, gameOver, paused]);
 
-  // Display board
+  // Display board with ghost
   const displayBoard = board.map((row) => [...row]);
-
-  // ghost first
   ghostPiece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
       if (c && ghostPiece.y + dy >= 0) {
@@ -286,8 +298,6 @@ export default function Tetris() {
       }
     })
   );
-
-  // then active piece
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
       if (c && piece.y + dy >= 0) {
@@ -300,7 +310,7 @@ export default function Tetris() {
     })
   );
 
-  // helper to center next piece in preview grid
+  // Next piece preview
   const getNextGrid = () => {
     const grid = Array.from({ length: NEXT_GRID_SIZE }, () =>
       Array(NEXT_GRID_SIZE).fill(null)
@@ -319,7 +329,7 @@ export default function Tetris() {
     return grid;
   };
 
-  // IconButton for touch controls
+  // Mobile buttons
   const IconButton = ({ onDown, onUp, onLeave, label, children }) => (
     <button
       aria-label={label}
@@ -416,6 +426,14 @@ export default function Tetris() {
 
             <p className="mt-2 text-lg">Score: {score}</p>
 
+            {/* Pause/Resume */}
+            <button
+              onClick={() => setPaused(!paused)}
+              className="mt-2 px-4 py-2 bg-yellow-600 rounded-lg text-white"
+            >
+              {paused ? "Resume" : "Pause"}
+            </button>
+
             {/* Controls */}
             <div
               className="grid gap-2 mt-4"
@@ -425,7 +443,6 @@ export default function Tetris() {
                 alignItems: "center",
               }}
             >
-              {/* Left */}
               <IconButton
                 label="Move Left"
                 onDown={() => startHold(-1)}
@@ -434,8 +451,6 @@ export default function Tetris() {
               >
                 ←
               </IconButton>
-
-              {/* Right */}
               <IconButton
                 label="Move Right"
                 onDown={() => startHold(1)}
@@ -444,13 +459,9 @@ export default function Tetris() {
               >
                 →
               </IconButton>
-
-              {/* Rotate */}
               <IconButton label="Rotate" onDown={rotatePiece}>
                 ⟳
               </IconButton>
-
-              {/* Soft Drop */}
               <IconButton
                 label="Soft Drop"
                 onDown={() => setSoftDropping(true)}
@@ -459,8 +470,6 @@ export default function Tetris() {
               >
                 ↓
               </IconButton>
-
-              {/* Hard Drop */}
               <IconButton label="Hard Drop" onDown={hardDrop}>
                 ⤓
               </IconButton>
