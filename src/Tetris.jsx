@@ -58,9 +58,9 @@ export default function Tetris() {
   const [gameOver, setGameOver] = useState(false);
   const [blockSize, setBlockSize] = useState(30);
   const dropIntervalRef = useRef(null);
-  const softDropIntervalRef = useRef(null);
+  const dropSpeedRef = useRef(600); // dynamic interval: normal 600ms, soft drop 50ms
 
-  // Prevent scrolling
+  // Prevent scrolling and calculate block size
   useEffect(() => {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -134,11 +134,22 @@ export default function Tetris() {
         });
         spawnNextPiece();
         return prevPiece;
-      } else {
-        return newPiece;
       }
+      return newPiece;
     });
   }, [board, spawnNextPiece, gameOver]);
+
+  // Start drop interval with dynamic speed
+  const startDropInterval = useCallback((speed) => {
+    clearInterval(dropIntervalRef.current);
+    dropSpeedRef.current = speed;
+    dropIntervalRef.current = setInterval(drop, dropSpeedRef.current);
+  }, [drop]);
+
+  useEffect(() => {
+    startDropInterval(600);
+    return () => clearInterval(dropIntervalRef.current);
+  }, [startDropInterval]);
 
   const move = (dx) => {
     setPiece((prev) => {
@@ -165,29 +176,10 @@ export default function Tetris() {
     });
   };
 
-  // Automatic drop
-  useEffect(() => {
-    dropIntervalRef.current = setInterval(drop, 600);
-    return () => clearInterval(dropIntervalRef.current);
-  }, [drop]);
+  // Soft drop handlers
+  const startSoftDrop = () => startDropInterval(50);
+  const stopSoftDrop = () => startDropInterval(600);
 
-  // Soft drop hold
-  const startSoftDrop = () => {
-    if (softDropIntervalRef.current) return;
-    softDropIntervalRef.current = setInterval(() => {
-      setPiece((prevPiece) => {
-        const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
-        return collides(newPiece, board) ? prevPiece : newPiece;
-      });
-    }, 50);
-  };
-
-  const stopSoftDrop = () => {
-    clearInterval(softDropIntervalRef.current);
-    softDropIntervalRef.current = null;
-  };
-
-  // Touch buttons
   const buttonStyle = {
     userSelect: "none",
     WebkitUserSelect: "none",
@@ -267,39 +259,20 @@ export default function Tetris() {
       </div>
 
       {gameOver && (
-        <p className="mt-2 text-red-400 text-center text-lg">
-          Game Over! Refresh to restart.
-        </p>
+        <p className="mt-2 text-red-400 text-center text-lg">Game Over! Refresh to restart.</p>
       )}
 
       <div className="flex gap-2 mt-4 flex-wrap justify-center">
-        <button
-          style={buttonStyle}
-          onTouchStart={() => move(-1)}
-          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
-        >
+        <button style={buttonStyle} onTouchStart={() => move(-1)} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
           ←
         </button>
-        <button
-          style={buttonStyle}
-          onTouchStart={rotatePiece}
-          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
-        >
+        <button style={buttonStyle} onTouchStart={rotatePiece} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
           ↺
         </button>
-        <button
-          style={buttonStyle}
-          onTouchStart={() => move(1)}
-          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
-        >
+        <button style={buttonStyle} onTouchStart={() => move(1)} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
           →
         </button>
-        <button
-          style={buttonStyle}
-          onTouchStart={startSoftDrop}
-          onTouchEnd={stopSoftDrop}
-          className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
-        >
+        <button style={buttonStyle} onTouchStart={startSoftDrop} onTouchEnd={stopSoftDrop} className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl">
           ↓
         </button>
       </div>
