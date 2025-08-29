@@ -62,9 +62,9 @@ export default function Tetris() {
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
 
-  // Gesture tracking
   const touchStartRef = useRef({ x: 0, y: 0 });
   const gestureTriggered = useRef(false);
+  const swipeHoldRef = useRef(null);
 
   // Prevent scrolling & calculate block size
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop mobile-friendly loop
+  // Soft drop loop
   useEffect(() => {
     if (!softDropping) return;
     let frame;
@@ -203,13 +203,15 @@ export default function Tetris() {
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
-      if (e.key === "ArrowLeft") move(-1);
-      if (e.key === "ArrowRight") move(1);
+      if (e.key === "ArrowLeft") startHold(-1);
+      if (e.key === "ArrowRight") startHold(1);
       if (e.key === "ArrowDown") setSoftDropping(true);
       if (e.key === "ArrowUp") rotatePiece();
       if (e.key === " ") hardDrop();
     };
     const handleKeyUp = (e) => {
+      if (e.key === "ArrowLeft") stopHold(-1);
+      if (e.key === "ArrowRight") stopHold(1);
       if (e.key === "ArrowDown") setSoftDropping(false);
     };
     window.addEventListener("keydown", handleKey);
@@ -220,7 +222,7 @@ export default function Tetris() {
     };
   }, [drop, gameOver]);
 
-  // Touch gesture controls: swipe left/right, tap to rotate
+  // Touch gestures
   const handlePointerDown = (e) => {
     gestureTriggered.current = false;
     const touch = e.touches ? e.touches[0] : e;
@@ -233,19 +235,24 @@ export default function Tetris() {
     const dy = touch.clientY - touchStartRef.current.y;
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
-    const threshold = 10; // for tap
+    const threshold = 10;
 
     if (!gestureTriggered.current) {
       if (absX < threshold && absY < threshold) {
         rotatePiece(); // tap
       } else if (absX > absY && absX > threshold) {
-        dx > 0 ? move(1) : move(-1); // swipe left/right 1 square
+        // Horizontal swipe: short = 1 square, long = hold
+        move(dx > 0 ? 1 : -1);
+        swipeHoldRef.current = setInterval(() => move(dx > 0 ? 1 : -1), 150);
       }
       gestureTriggered.current = true;
     }
   };
 
-  const handlePointerCancel = () => setSoftDropping(false);
+  const handlePointerCancel = () => {
+    setSoftDropping(false);
+    if (swipeHoldRef.current) clearInterval(swipeHoldRef.current);
+  };
 
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
@@ -264,12 +271,29 @@ export default function Tetris() {
   return (
     <div
       className="flex flex-col items-center justify-center text-white bg-gray-900 px-2 relative"
-      style={{ height: "100vh", overflow: "hidden", touchAction: "none" }}
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+        touchAction: "none",
+        WebkitTapHighlightColor: "transparent",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}
       onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
+      onPointerUp={(e) => {
+        handlePointerUp(e);
+        stopHold(-1);
+        stopHold(1);
+        if (swipeHoldRef.current) clearInterval(swipeHoldRef.current);
+      }}
       onPointerLeave={handlePointerCancel}
       onTouchStart={handlePointerDown}
-      onTouchEnd={handlePointerUp}
+      onTouchEnd={(e) => {
+        handlePointerUp(e);
+        stopHold(-1);
+        stopHold(1);
+        if (swipeHoldRef.current) clearInterval(swipeHoldRef.current);
+      }}
       onTouchCancel={handlePointerCancel}
     >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
