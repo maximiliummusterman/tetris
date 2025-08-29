@@ -62,7 +62,6 @@ export default function Tetris() {
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
 
-  // Non-highlightable style
   const noHighlightStyle = {
     userSelect: "none",
     WebkitUserSelect: "none",
@@ -134,19 +133,26 @@ export default function Tetris() {
   const drop = useCallback(() => {
     setPiece((prevPiece) => {
       if (gameOver) return prevPiece;
-      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
-      if (collides(newPiece, board)) {
-        // Only merge and spawn next when landing
-        setBoard((prevBoard) => {
+
+      let collided = false;
+      setBoard((prevBoard) => {
+        const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
+        if (collides(newPiece, prevBoard)) {
+          collided = true;
           const merged = merge(prevPiece, prevBoard);
           const cleared = clearLines(merged);
           if (prevPiece.y === 0) setGameOver(true);
           return cleared;
-        });
+        }
+        return prevBoard;
+      });
+
+      if (collided) {
         spawnNextPiece();
         return prevPiece;
+      } else {
+        return { ...prevPiece, y: prevPiece.y + 1 };
       }
-      return newPiece;
     });
   }, [board, spawnNextPiece, gameOver]);
 
