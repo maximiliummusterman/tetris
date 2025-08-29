@@ -446,7 +446,8 @@ export default function Tetris() {
                   gridColumn: "1 / span 2", // spans both columns
                   width: "100%",
                   height: 64,
-                  fontSize: "2.3rem",
+                  fontSize: "3rem",
+                  alignContent: "center",
                 }}
               >
                 ⟳
