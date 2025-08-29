@@ -109,40 +109,49 @@ export default function Tetris() {
     setNextPiece(randomPiece());
   }, [nextPiece]);
 
+  // Drop function using functional updates
   const drop = useCallback(() => {
-    if (gameOver) return;
-    const newPiece = { ...piece, y: piece.y + 1 };
-    if (collides(newPiece)) {
-      const merged = merge(piece, board);
-      const cleared = clearLines(merged);
-      if (piece.y === 0) {
-        setGameOver(true);
-        return;
+    setPiece((prevPiece) => {
+      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
+      if (collides(newPiece)) {
+        setBoard((prevBoard) => {
+          const merged = merge(prevPiece, prevBoard);
+          const cleared = clearLines(merged);
+          if (prevPiece.y === 0) setGameOver(true);
+          return cleared;
+        });
+        spawnNextPiece();
+        return prevPiece; // temporarily keep current piece
+      } else {
+        return newPiece;
       }
-      setBoard(cleared);
-      spawnNextPiece();
-    } else {
-      setPiece(newPiece);
-    }
-  }, [piece, board, gameOver, spawnNextPiece]);
+    });
+  }, [collides, merge, clearLines, spawnNextPiece]);
 
   const move = (dx) => {
-    const newPiece = { ...piece, x: piece.x + dx };
-    if (!collides(newPiece)) setPiece(newPiece);
+    setPiece((prev) => {
+      const newPiece = { ...prev, x: prev.x + dx };
+      return collides(newPiece) ? prev : newPiece;
+    });
   };
 
   const rotatePiece = () => {
-    const newPiece = rotate(piece);
-    if (!collides(newPiece)) setPiece(newPiece);
+    setPiece((prev) => {
+      const newPiece = rotate(prev);
+      return collides(newPiece) ? prev : newPiece;
+    });
   };
 
   const hardDrop = () => {
-    let newPiece = { ...piece };
-    while (!collides({ ...newPiece, y: newPiece.y + 1 })) {
-      newPiece.y++;
-    }
-    setBoard(clearLines(merge(newPiece, board)));
-    spawnNextPiece();
+    setPiece((prev) => {
+      let newPiece = { ...prev };
+      while (!collides({ ...newPiece, y: newPiece.y + 1 })) {
+        newPiece.y++;
+      }
+      setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
+      spawnNextPiece();
+      return newPiece;
+    });
   };
 
   // Keyboard controls
@@ -157,11 +166,11 @@ export default function Tetris() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [piece, board, gameOver, drop]);
+  }, [gameOver, drop]);
 
-  // Automatic drop
+  // Automatic drop every 600ms
   useEffect(() => {
-    dropInterval.current = setInterval(drop, 800);
+    dropInterval.current = setInterval(drop, 600);
     return () => clearInterval(dropInterval.current);
   }, [drop]);
 
@@ -191,7 +200,7 @@ export default function Tetris() {
     if (!gameOver) rotatePiece();
   };
 
-  // Render
+  // Render main board
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -203,7 +212,7 @@ export default function Tetris() {
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
       <h1 className="text-3xl font-bold mb-4">Tetris</h1>
 
-      {/* Next Piece */}
+      {/* Next Piece Preview */}
       <div className="mb-4">
         <p className="text-lg mb-1">Next:</p>
         <div
@@ -291,3 +300,4 @@ export default function Tetris() {
     </div>
   );
 }
+
