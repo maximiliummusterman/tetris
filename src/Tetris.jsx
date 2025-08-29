@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 10;
 const ROWS = 20;
-const NEXT_GRID_SIZE = 4; // fixed 4x4 grid for next piece
+const NEXT_GRID_SIZE = 4;
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
@@ -61,9 +61,12 @@ export default function Tetris() {
   const SOFT_DROP_INTERVAL = 50;
   const [blockSize, setBlockSize] = useState(30);
 
-  // Disable scrolling & calculate block size once
+  // Disable page scrolling and fix block size
   useEffect(() => {
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.height = "100%";
+    document.body.style.height = "100%";
 
     const headerHeight = 100;
     const buttonsHeight = 80;
@@ -74,6 +77,7 @@ export default function Tetris() {
 
     return () => {
       document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
     };
   }, []);
 
@@ -125,6 +129,7 @@ export default function Tetris() {
     setNextPiece(randomPiece());
   }, [nextPiece]);
 
+  // Automatic drop interval (merges & spawns next piece)
   const drop = useCallback(() => {
     setPiece((prevPiece) => {
       if (gameOver) return prevPiece;
@@ -144,13 +149,14 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
+  // Soft drop for holding button (does not merge)
   const softDrop = () => {
     setPiece((prevPiece) => {
       const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
       if (!collides(newPiece, board)) {
         return newPiece;
       }
-      return prevPiece; // do not merge here
+      return prevPiece; // do not merge
     });
   };
 
@@ -237,10 +243,12 @@ export default function Tetris() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900 px-2">
+    <div
+      className="flex flex-col items-center justify-center text-white bg-gray-900 px-2"
+      style={{ height: "100vh", overflow: "hidden", touchAction: "none" }}
+    >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
-      {/* Game area */}
       <div className="flex flex-row gap-4">
         {/* Main Board */}
         <div
