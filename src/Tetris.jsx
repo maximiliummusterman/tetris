@@ -464,6 +464,40 @@ export default function Tetris() {
                 ⤓
               </IconButton>
             </div>
+            {/* Overlay for paused state */}
+            {paused && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  backgroundColor: "rgba(0,0,0,0.6)", // dim effect
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  zIndex: 50,
+                  pointerEvents: "none", // makes overlay click-through
+                }}
+              >
+                {/* Resume button stays clickable */}
+                <button
+                  onClick={() => setPaused(false)}
+                  style={{
+                    pointerEvents: "auto", // only button is clickable
+                    padding: "12px 24px",
+                    fontSize: "1.2rem",
+                    backgroundColor: "#facc15",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Resume
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
