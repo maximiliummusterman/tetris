@@ -144,6 +144,10 @@ export default function Tetris() {
       if (e.key === " ") hardDrop();
     };
     window.addEventListener("keydown", handleKey);
+    document.getElementById('btn-left').addEventListener('touchstart', move(-1));
+    document.getElementById('btn-right').addEventListener('touchstart', move(1));
+    document.getElementById('btn-rotate').addEventListener('touchstart', rotatePiece();
+    document.getElementById('btn-drop').addEventListener('touchstart', drop());
     return () => window.removeEventListener("keydown", handleKey);
   }, [piece, board, gameOver]);
 
