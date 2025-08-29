@@ -129,37 +129,32 @@ export default function Tetris() {
     if (gameOver) return;
 
     setPiece((prevPiece) => {
-      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
-      let collided = false;
+      const nextPos = { ...prevPiece, y: prevPiece.y + 1 };
 
-      setBoard((prevBoard) => {
-        if (collides(newPiece, prevBoard)) {
-          collided = true;
+      if (collides(nextPos, board)) {
+        // Merge the piece first
+        setBoard((prevBoard) => {
           const merged = merge(prevPiece, prevBoard);
-
-          if (prevPiece.y === 0) {
-            // Top collision → game over
-            clearInterval(autoDropRef.current);
-            setGameOver(true);
-            return merged; // keep the first piece visible
-          }
-
           const cleared = clearLines(merged);
           return cleared;
-        }
-        return prevBoard;
-      });
+        });
 
-      // Only spawn next piece if collision happened below top
-      if (collided && prevPiece.y > 0) {
-        setPiece(nextPiece);
-        setNextPiece(randomPiece());
-        return nextPiece;
+        // Game over if collision at top
+        if (prevPiece.y === 0) {
+          clearInterval(autoDropRef.current);
+          setGameOver(true);
+        } else {
+          // Spawn next piece in separate state update
+          setPiece(nextPiece);
+          setNextPiece(randomPiece());
+        }
+
+        return prevPiece; // keep piece temporarily so board render is stable
       }
 
-      return collided ? prevPiece : newPiece;
+      return nextPos;
     });
-  }, [nextPiece, gameOver]);
+  }, [board, nextPiece, gameOver]);
 
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
