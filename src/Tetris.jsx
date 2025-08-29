@@ -54,124 +54,163 @@ export default function Tetris() {
   const boardRef = useRef(board);
   useEffect(() => { boardRef.current = board; }, [board]);
 
-  const noHighlightStyle = { userSelect: "none", WebkitUserSelect: "none", WebkitTapHighlightColor: "transparent", WebkitTouchCallout: "none", MozUserSelect: "none", msUserSelect: "none", caretColor: "transparent" };
+  const noHighlightStyle = {
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    WebkitTouchCallout: "none",
+    MozUserSelect: "none",
+    msUserSelect: "none",
+    caretColor: "transparent",
+  };
 
-  const collides = (p, brd) => p.shape.some((row, dy) => row.some((cell, dx) => cell && (brd[p.y + dy]?.[p.x + dx] !== null || p.y + dy >= ROWS || p.x + dx < 0 || p.x + dx >= COLS)));
+  const collides = (p, brd) =>
+    p.shape.some((row, dy) =>
+      row.some(
+        (cell, dx) =>
+          cell &&
+          (brd[p.y + dy]?.[p.x + dx] !== null ||
+            p.y + dy >= ROWS ||
+            p.x + dx < 0 ||
+            p.x + dx >= COLS)
+      )
+    );
 
   const merge = (p, brd) => {
     const copy = brd.map(r => [...r]);
-    p.shape.forEach((row, dy) => row.forEach((cell, dx) => { if(cell) copy[p.y + dy][p.x + dx] = p.type; }));
+    p.shape.forEach((row, dy) =>
+      row.forEach((cell, dx) => { if(cell) copy[p.y + dy][p.x + dx] = p.type; })
+    );
     return copy;
   };
 
   const clearLines = (brd) => {
     let cleared = 0;
     const newBoard = brd.filter(row => {
-      if(row.every(cell => cell !== null)){ cleared++; return false; }
+      if (row.every(cell => cell !== null)) { cleared++; return false; }
       return true;
     });
-    while(newBoard.length < ROWS) newBoard.unshift(Array(COLS).fill(null));
-    if(cleared > 0){ const points=[0,100,300,500,800]; setScore(s=>s+points[cleared]); }
+    while (newBoard.length < ROWS) newBoard.unshift(Array(COLS).fill(null));
+    if (cleared > 0) {
+      const points = [0, 100, 300, 500, 800];
+      setScore(s => s + points[cleared]);
+    }
     return newBoard;
   };
 
   const drop = useCallback(() => {
-    if(gameOver || paused) return;
+    if (gameOver || paused) return;
+
     setPiece(prev => {
-      const nextPos = {...prev, y: prev.y+1};
-      if(collides(nextPos, board)){
+      const nextPos = { ...prev, y: prev.y + 1 };
+      if (collides(nextPos, boardRef.current)) {
         landingRef.current = true;
         setBoard(prevBoard => clearLines(merge(prev, prevBoard)));
-        if(prev.y === 0){ clearInterval(autoDropRef.current); setGameOver(true); setTimeout(()=>landingRef.current=false,0); return prev; }
-        setPiece(nextPiece);
-        setNextPiece(randomPiece());
-        landingRef.current = false;
+
+        if (prev.y === 0) {
+          clearInterval(autoDropRef.current);
+          setGameOver(true);
+          setTimeout(() => (landingRef.current = false), 0);
+          return prev;
+        }
+
+        setTimeout(() => {
+          const np = nextPiece;
+          if (collides(np, boardRef.current)) {
+            setGameOver(true);
+          } else {
+            setPiece(np);
+            setNextPiece(randomPiece());
+            landingRef.current = false;
+          }
+        }, 0);
+
         return prev;
       }
+
       return nextPos;
     });
-  }, [board, gameOver, paused, nextPiece]);
+  }, [gameOver, paused, nextPiece]);
 
-  const getDropInterval = () => { let interval=600; if(score>=5000) interval=550; if(score>=10000) interval=500; if(score>=15000) interval=450; if(score>=20000) interval=400; if(score>=25000) interval=350; return Math.max(interval,300); };
+  const getDropInterval = () => {
+    let interval = 600;
+    if (score >= 5000) interval = 550;
+    if (score >= 10000) interval = 500;
+    if (score >= 15000) interval = 450;
+    if (score >= 20000) interval = 400;
+    if (score >= 25000) interval = 350;
+    return Math.max(interval, 300);
+  };
 
   useEffect(() => {
-    if(paused || softDropping) return;
+    if (paused || softDropping) return;
     clearInterval(autoDropRef.current);
     autoDropRef.current = setInterval(drop, getDropInterval());
     return () => clearInterval(autoDropRef.current);
   }, [softDropping, drop, paused, score]);
 
-  // Smooth soft drop using requestAnimationFrame
   useEffect(() => {
-    if(!softDropping || paused || gameOver) return;
-    let animationFrame;
-    const loop = () => { drop(); animationFrame = requestAnimationFrame(loop); };
-    loop();
-    return () => cancelAnimationFrame(animationFrame);
+    if (!softDropping || paused || gameOver) return;
+    const interval = setInterval(drop, 50);
+    return () => clearInterval(interval);
   }, [softDropping, drop, paused, gameOver]);
 
-  const move = (dx) => { if(gameOver || landingRef.current || paused) return; setPiece(prev=>{ const newPiece={...prev,x:prev.x+dx}; return collides(newPiece,board)?prev:newPiece; }); };
-
-  // Rotation with wall kick
-  const rotatePiece = () => {
-    if(gameOver || landingRef.current || paused) return;
+  const move = (dx) => {
+    if (gameOver || landingRef.current || paused) return;
     setPiece(prev => {
-      const rotated = prev.shape[0].map((_,i)=>prev.shape.map(r=>r[i]).reverse());
-      const newPiece = {...prev,shape:rotated};
-      if(!collides(newPiece,board)) return newPiece;
-      // Wall kick: try left or right
-      for(let dx of [-1,1,-2,2]){
-        const testPiece = {...newPiece,x:newPiece.x+dx};
-        if(!collides(testPiece,board)) return testPiece;
+      const newPiece = { ...prev, x: prev.x + dx };
+      return collides(newPiece, boardRef.current) ? prev : newPiece;
+    });
+  };
+
+  const rotatePiece = () => {
+    if (gameOver || landingRef.current || paused) return;
+
+    setPiece(prev => {
+      const rotated = prev.shape[0].map((_, i) => prev.shape.map(r => r[i]).reverse());
+      let newPiece = { ...prev, shape: rotated };
+
+      if (!collides(newPiece, boardRef.current)) return newPiece;
+
+      for (let dx of [-1, 1, -2, 2]) {
+        const shifted = { ...newPiece, x: newPiece.x + dx };
+        if (!collides(shifted, boardRef.current)) return shifted;
       }
+
       return prev;
     });
   };
 
   const hardDrop = () => {
-    if(gameOver || landingRef.current || paused) return;
+    if (gameOver || landingRef.current || paused) return;
     setPiece(prev => {
-      let newPiece={...prev};
-      while(!collides({...newPiece,y:newPiece.y+1},board)) newPiece.y++;
-      setBoard(prevBoard=>clearLines(merge(newPiece,prevBoard)));
+      let newPiece = { ...prev };
+      while (!collides({ ...newPiece, y: newPiece.y + 1 }, boardRef.current)) newPiece.y++;
+      setBoard(prevBoard => clearLines(merge(newPiece, prevBoard)));
       setPiece(nextPiece);
       setNextPiece(randomPiece());
       return newPiece;
     });
   };
 
-  // Memoized ghost piece
   const ghostPiece = useMemo(() => {
-    let ghost={...piece};
-    while(!collides({...ghost,y:ghost.y+1},board)) ghost.y++;
+    let ghost = { ...piece };
+    while (!collides({ ...ghost, y: ghost.y + 1 }, boardRef.current)) ghost.y++;
     return ghost;
-  }, [piece, board]);
+  }, [piece]);
 
-  // Keyboard controls
   useEffect(() => {
-    const handleKey=(e)=>{
-      if(gameOver || paused) return;
-      if(e.key==="ArrowLeft") move(-1);
-      if(e.key==="ArrowRight") move(1);
-      if(e.key==="ArrowDown") drop();
-      if(e.key==="ArrowUp") rotatePiece();
-      if(e.key===" ") hardDrop();
+    const handleKey = (e) => {
+      if (gameOver || paused) return;
+      if (e.key === "ArrowLeft") move(-1);
+      if (e.key === "ArrowRight") move(1);
+      if (e.key === "ArrowDown") drop();
+      if (e.key === "ArrowUp") rotatePiece();
+      if (e.key === " ") hardDrop();
     };
-    window.addEventListener("keydown",handleKey);
-    return ()=>window.removeEventListener("keydown",handleKey);
-  },[drop, gameOver, paused]);
-
-  const displayBoard = board.map(r=>[...r]);
-  ghostPiece.shape.forEach((r,dy)=>r.forEach((c,dx)=>{ if(c && ghostPiece.y+dy>=0){ const y=ghostPiece.y+dy; const x=ghostPiece.x+dx; if(displayBoard[y][x]===null) displayBoard[y][x]=`ghost-${piece.type}`; }}));
-  piece.shape.forEach((r,dy)=>r.forEach((c,dx)=>{ if(c && piece.y+dy>=0){ const y=piece.y+dy; const x=piece.x+dx; if(displayBoard[y][x]!==undefined) displayBoard[y][x]=piece.type; }}));
-
-  const getNextGrid=()=>{
-    const grid=Array.from({length:NEXT_GRID_SIZE},()=>Array(NEXT_GRID_SIZE).fill(null));
-    const offsetY=Math.floor((NEXT_GRID_SIZE-nextPiece.shape.length)/2);
-    const offsetX=Math.floor((NEXT_GRID_SIZE-nextPiece.shape[0].length)/2);
-    nextPiece.shape.forEach((row,y)=>row.forEach((c,x)=>{ if(c) grid[offsetY+y][offsetX+x]=nextPiece.type; }));
-    return grid;
-  };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [drop, gameOver, paused]);
 
   return (
     <div
