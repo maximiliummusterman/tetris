@@ -6,3 +6,21 @@ body {
   margin: 0;
   font-family: system-ui, sans-serif;
 }
+.mobile-controls {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+}
+
+.mobile-controls button {
+  font-size: 24px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(50,50,50,0.8);
+  color: #fff;
+}
