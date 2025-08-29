@@ -431,17 +431,28 @@ export default function Tetris() {
                 alignItems: "center",
               }}
             >
-              <IconButton onDown={() => startHold(-1)} onUp={() => stopHold(-1)}>←</IconButton>
-              <IconButton onDown={() => startHold(1)} onUp={() => stopHold(1)}>→</IconButton>
-
-              {/* Rotate button spanning all columns */}
+              {/* Row 1: Move Left, Rotate (span 2), Move Right */}
+              <IconButton onDown={() => startHold(-1)} onUp={() => stopHold(-1)}>
+                ←
+              </IconButton>
+            
               <IconButton
                 onDown={rotatePiece}
-                style={{ gridColumn: "span 3", padding: "16px 20px", fontSize: "1.75rem" }}
+                style={{
+                  gridColumn: "span 2",   // ✅ spans 2 columns
+                  width: "100%",          // makes sure it stretches across both
+                  height: 64,
+                  fontSize: "1.5rem",
+                }}
               >
                 ⟳
               </IconButton>
-
+            
+              <IconButton onDown={() => startHold(1)} onUp={() => stopHold(1)}>
+                →
+              </IconButton>
+            
+              {/* Row 2: Drop buttons */}
               <IconButton
                 onDown={() => setSoftDropping(true)}
                 onUp={() => setSoftDropping(false)}
@@ -449,8 +460,10 @@ export default function Tetris() {
               >
                 ↓
               </IconButton>
-
-              <IconButton onDown={hardDrop}>⤓</IconButton>
+            
+              <IconButton onDown={hardDrop} style={{ gridColumn: "span 2" }}>
+                ⤓
+              </IconButton>
             </div>
           </div>
         </div>
