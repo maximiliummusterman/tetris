@@ -68,8 +68,8 @@ export default function Tetris() {
     return { ...p, shape: rotated };
   };
 
-  const collides = (p, brd = board) => {
-    return p.shape.some((row, dy) =>
+  const collides = (p, brd = board) =>
+    p.shape.some((row, dy) =>
       row.some(
         (cell, dx) =>
           cell &&
@@ -79,7 +79,6 @@ export default function Tetris() {
             p.x + dx >= COLS)
       )
     );
-  };
 
   const merge = (p, brd) => {
     const copy = brd.map((row) => [...row]);
@@ -142,7 +141,7 @@ export default function Tetris() {
     setNextPiece(randomPiece());
   };
 
-  // ---- Keyboard controls ----
+  // Keyboard controls
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
@@ -156,7 +155,7 @@ export default function Tetris() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [piece, board, gameOver]);
 
-  // ---- Automatic drop ----
+  // Automatic drop
   useEffect(() => {
     if (!gameOver) {
       clearInterval(dropInterval.current);
@@ -165,7 +164,7 @@ export default function Tetris() {
     }
   }, [gameOver]);
 
-  // ---- Mobile buttons & hold ----
+  // Mobile buttons & hold
   const startHold = (action) => {
     if (gameOver) return;
 
@@ -192,7 +191,7 @@ export default function Tetris() {
     if (!gameOver) rotatePiece();
   };
 
-  // ---- Render board ----
+  // Render main board
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
@@ -206,32 +205,33 @@ export default function Tetris() {
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
       <h1 className="text-3xl font-bold mb-4">Tetris</h1>
 
-      {/* Next Piece Preview */}
+      {/* Next piece preview */}
       <div className="mb-4">
         <p className="text-lg mb-1">Next:</p>
         <div
-          className="grid"
+          className="inline-grid border border-white"
           style={{
-            gridTemplateColumns: `repeat(${Math.max(...nextPiece.shape[0].length)}, ${BLOCK_SIZE}px)`,
+            gridTemplateColumns: `repeat(${nextPiece.shape[0].length}, ${BLOCK_SIZE}px)`,
             gridTemplateRows: `repeat(${nextPiece.shape.length}, ${BLOCK_SIZE}px)`,
-            border: "1px solid white",
-            display: "inline-grid",
           }}
         >
           {nextPiece.shape.map((row, y) =>
             row.map((cell, x) => (
-              <motion.div
+              <div
                 key={`next-${y}-${x}`}
-                className={`w-[${BLOCK_SIZE}px] h-[${BLOCK_SIZE}px] border border-gray-800 ${
-                  cell ? COLORS[nextPiece.type] : "bg-gray-900"
-                }`}
+                style={{
+                  width: BLOCK_SIZE,
+                  height: BLOCK_SIZE,
+                  border: "1px solid #333",
+                  backgroundColor: cell ? COLORS[nextPiece.type].replace("bg-", "") : "#111",
+                }}
               />
             ))
           )}
         </div>
       </div>
 
-      {/* Main Board */}
+      {/* Main board */}
       <div
         className="grid"
         style={{
@@ -244,9 +244,12 @@ export default function Tetris() {
           row.map((cell, x) => (
             <motion.div
               key={`${y}-${x}`}
-              className={`w-[${BLOCK_SIZE}px] h-[${BLOCK_SIZE}px] border border-gray-800 ${
-                cell ? COLORS[cell] : "bg-gray-900"
-              }`}
+              style={{
+                width: BLOCK_SIZE,
+                height: BLOCK_SIZE,
+                border: "1px solid #333",
+                backgroundColor: cell ? COLORS[cell].replace("bg-", "") : "#111",
+              }}
             />
           ))
         )}
