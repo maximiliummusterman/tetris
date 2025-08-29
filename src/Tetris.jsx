@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 10;
 const ROWS = 20;
@@ -6,12 +6,30 @@ const NEXT_GRID_SIZE = 4;
 
 const SHAPES = {
   I: [[1, 1, 1, 1]],
-  O: [[1, 1],[1, 1]],
-  T: [[0, 1, 0],[1, 1, 1]],
-  S: [[0, 1, 1],[1, 1, 0]],
-  Z: [[1, 1, 0],[0, 1, 1]],
-  J: [[1, 0, 0],[1, 1, 1]],
-  L: [[0, 0, 1],[1, 1, 1]],
+  O: [
+    [1, 1],
+    [1, 1],
+  ],
+  T: [
+    [0, 1, 0],
+    [1, 1, 1],
+  ],
+  S: [
+    [0, 1, 1],
+    [1, 1, 0],
+  ],
+  Z: [
+    [1, 1, 0],
+    [0, 1, 1],
+  ],
+  J: [
+    [1, 0, 0],
+    [1, 1, 1],
+  ],
+  L: [
+    [0, 0, 1],
+    [1, 1, 1],
+  ],
 };
 
 const COLORS = {
@@ -40,19 +58,24 @@ function randomPiece() {
 }
 
 export default function Tetris() {
-  const [board, setBoard] = useState(Array.from({ length: ROWS }, () => Array(COLS).fill(null)));
+  const [board, setBoard] = useState(
+    Array.from({ length: ROWS }, () => Array(COLS).fill(null))
+  );
   const [piece, setPiece] = useState(randomPiece());
   const [nextPiece, setNextPiece] = useState(randomPiece());
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
   const [blockSize, setBlockSize] = useState(24);
-  const [softDropping, setSoftDropping] = useState(false);
 
   const autoDropRef = useRef(null);
+  const holdRefs = useRef({});
+  const [softDropping, setSoftDropping] = useState(false);
   const landingRef = useRef(false);
   const boardRef = useRef(board);
-  useEffect(() => { boardRef.current = board; }, [board]);
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
 
   const noHighlightStyle = {
     userSelect: "none",
@@ -63,6 +86,29 @@ export default function Tetris() {
     msUserSelect: "none",
     caretColor: "transparent",
   };
+
+  const resetGame = () => {
+    setBoard(Array.from({ length: ROWS }, () => Array(COLS).fill(null)));
+    setPiece(randomPiece());
+    setNextPiece(randomPiece());
+    setScore(0);
+    setGameOver(false);
+    setPaused(false);
+  };
+
+  const recalcBlockSize = useCallback(() => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const sizeByWidth = Math.floor(vw / (COLS + NEXT_GRID_SIZE + 2));
+    const sizeByHeight = Math.floor(vh / (ROWS + 4));
+    const size = Math.max(14, Math.min(30, sizeByWidth, sizeByHeight));
+    setBlockSize(size);
+  }, []);
+  useEffect(() => {
+    recalcBlockSize();
+    window.addEventListener("resize", recalcBlockSize);
+    return () => window.removeEventListener("resize", recalcBlockSize);
+  }, [recalcBlockSize]);
 
   const collides = (p, brd) =>
     p.shape.some((row, dy) =>
@@ -77,60 +123,60 @@ export default function Tetris() {
     );
 
   const merge = (p, brd) => {
-    const copy = brd.map(r => [...r]);
+    const copy = brd.map((row) => [...row]);
     p.shape.forEach((row, dy) =>
-      row.forEach((cell, dx) => { if(cell) copy[p.y + dy][p.x + dx] = p.type; })
+      row.forEach((cell, dx) => {
+        if (cell) copy[p.y + dy][p.x + dx] = p.type;
+      })
     );
     return copy;
   };
 
   const clearLines = (brd) => {
     let cleared = 0;
-    const newBoard = brd.filter(row => {
-      if (row.every(cell => cell !== null)) { cleared++; return false; }
+    const newBoard = brd.filter((row) => {
+      if (row.every((cell) => cell !== null)) {
+        cleared++;
+        return false;
+      }
       return true;
     });
     while (newBoard.length < ROWS) newBoard.unshift(Array(COLS).fill(null));
     if (cleared > 0) {
       const points = [0, 100, 300, 500, 800];
-      setScore(s => s + points[cleared]);
+      setScore((s) => s + points[cleared]);
     }
     return newBoard;
   };
 
   const drop = useCallback(() => {
     if (gameOver || paused) return;
-
-    setPiece(prev => {
+    setPiece((prev) => {
       const nextPos = { ...prev, y: prev.y + 1 };
-      if (collides(nextPos, boardRef.current)) {
+      if (collides(nextPos, board)) {
         landingRef.current = true;
-        setBoard(prevBoard => clearLines(merge(prev, prevBoard)));
-
+        setBoard((prevBoard) => clearLines(merge(prev, prevBoard)));
         if (prev.y === 0) {
           clearInterval(autoDropRef.current);
           setGameOver(true);
           setTimeout(() => (landingRef.current = false), 0);
           return prev;
         }
-
         setTimeout(() => {
-          const np = nextPiece;
-          if (collides(np, boardRef.current)) {
+          if (gameOver) return;
+          if (collides(nextPiece, boardRef.current)) {
             setGameOver(true);
-          } else {
-            setPiece(np);
-            setNextPiece(randomPiece());
-            landingRef.current = false;
+            return;
           }
+          setPiece(nextPiece);
+          setNextPiece(randomPiece());
+          landingRef.current = false;
         }, 0);
-
         return prev;
       }
-
       return nextPos;
     });
-  }, [gameOver, paused, nextPiece]);
+  }, [board, nextPiece, gameOver, paused]);
 
   const getDropInterval = () => {
     let interval = 600;
@@ -150,54 +196,72 @@ export default function Tetris() {
   }, [softDropping, drop, paused, score]);
 
   useEffect(() => {
-    if (!softDropping || paused || gameOver) return;
-    const interval = setInterval(drop, 50);
-    return () => clearInterval(interval);
-  }, [softDropping, drop, paused, gameOver]);
+    if (!softDropping || gameOver || paused) return;
+    let t;
+    const loop = () => {
+      drop();
+      t = setTimeout(loop, 50);
+    };
+    loop();
+    return () => clearTimeout(t);
+  }, [softDropping, drop, gameOver, paused]);
 
   const move = (dx) => {
     if (gameOver || landingRef.current || paused) return;
-    setPiece(prev => {
+    setPiece((prev) => {
       const newPiece = { ...prev, x: prev.x + dx };
-      return collides(newPiece, boardRef.current) ? prev : newPiece;
+      return collides(newPiece, board) ? prev : newPiece;
     });
   };
 
   const rotatePiece = () => {
     if (gameOver || landingRef.current || paused) return;
-
-    setPiece(prev => {
-      const rotated = prev.shape[0].map((_, i) => prev.shape.map(r => r[i]).reverse());
-      let newPiece = { ...prev, shape: rotated };
-
-      if (!collides(newPiece, boardRef.current)) return newPiece;
-
-      for (let dx of [-1, 1, -2, 2]) {
-        const shifted = { ...newPiece, x: newPiece.x + dx };
-        if (!collides(shifted, boardRef.current)) return shifted;
-      }
-
-      return prev;
+    setPiece((prev) => {
+      const rotated = prev.shape[0].map((_, i) =>
+        prev.shape.map((row) => row[i]).reverse()
+      );
+      const newPiece = { ...prev, shape: rotated };
+      return collides(newPiece, board) ? prev : newPiece;
     });
   };
 
   const hardDrop = () => {
     if (gameOver || landingRef.current || paused) return;
-    setPiece(prev => {
+    setPiece((prev) => {
       let newPiece = { ...prev };
-      while (!collides({ ...newPiece, y: newPiece.y + 1 }, boardRef.current)) newPiece.y++;
-      setBoard(prevBoard => clearLines(merge(newPiece, prevBoard)));
-      setPiece(nextPiece);
-      setNextPiece(randomPiece());
+      while (!collides({ ...newPiece, y: newPiece.y + 1 }, board)) newPiece.y++;
+      setBoard((prevBoard) => clearLines(merge(newPiece, prevBoard)));
+      setTimeout(() => {
+        if (collides(nextPiece, boardRef.current)) {
+          setGameOver(true);
+          return;
+        }
+        setPiece(nextPiece);
+        setNextPiece(randomPiece());
+      }, 0);
       return newPiece;
     });
   };
 
-  const ghostPiece = useMemo(() => {
+  const startHold = (dir) => {
+    if (holdRefs.current[dir]) return;
+    move(dir);
+    holdRefs.current[dir] = setInterval(() => move(dir), 130);
+  };
+  const stopHold = (dir) => {
+    if (holdRefs.current[dir]) {
+      clearInterval(holdRefs.current[dir]);
+      holdRefs.current[dir] = null;
+    }
+  };
+
+  const ghostPiece = (() => {
     let ghost = { ...piece };
-    while (!collides({ ...ghost, y: ghost.y + 1 }, boardRef.current)) ghost.y++;
+    while (!collides({ ...ghost, y: ghost.y + 1 }, board)) {
+      ghost.y++;
+    }
     return ghost;
-  }, [piece]);
+  })();
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -211,6 +275,72 @@ export default function Tetris() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [drop, gameOver, paused]);
+
+  const displayBoard = board.map((row) => [...row]);
+  ghostPiece.shape.forEach((r, dy) =>
+    r.forEach((c, dx) => {
+      if (c && ghostPiece.y + dy >= 0) {
+        const y = ghostPiece.y + dy;
+        const x = ghostPiece.x + dx;
+        if (displayBoard[y] && displayBoard[y][x] === null) {
+          displayBoard[y][x] = `ghost-${piece.type}`;
+        }
+      }
+    })
+  );
+  piece.shape.forEach((r, dy) =>
+    r.forEach((c, dx) => {
+      if (c && piece.y + dy >= 0) {
+        const y = piece.y + dy;
+        const x = piece.x + dx;
+        if (displayBoard[y] && displayBoard[y][x] !== undefined) {
+          displayBoard[y][x] = piece.type;
+        }
+      }
+    })
+  );
+
+  const getNextGrid = () => {
+    const grid = Array.from({ length: NEXT_GRID_SIZE }, () =>
+      Array(NEXT_GRID_SIZE).fill(null)
+    );
+    const offsetY = Math.floor(
+      (NEXT_GRID_SIZE - nextPiece.shape.length) / 2
+    );
+    const offsetX = Math.floor(
+      (NEXT_GRID_SIZE - nextPiece.shape[0].length) / 2
+    );
+    nextPiece.shape.forEach((row, y) =>
+      row.forEach((c, x) => {
+        if (c) grid[offsetY + y][offsetX + x] = nextPiece.type;
+      })
+    );
+    return grid;
+  };
+
+  const IconButton = ({ onDown, onUp, onLeave, label, children, style }) => (
+    <button
+      aria-label={label}
+      role="button"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onDown && onDown();
+      }}
+      onPointerUp={(e) => {
+        e.preventDefault();
+        onUp && onUp();
+      }}
+      onPointerLeave={(e) => {
+        e.preventDefault();
+        onLeave && onLeave();
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+      className="px-4 py-3 bg-gray-700 rounded-lg text-white text-xl flex items-center justify-center"
+      style={{ ...noHighlightStyle, touchAction: "none", ...style }}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <div
