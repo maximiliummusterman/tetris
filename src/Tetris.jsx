@@ -193,7 +193,7 @@ export default function Tetris() {
   );
 }
 
-document.getElementById('btn-left').addEventListener('touchstart', move(-1);
+document.getElementById('btn-left').addEventListener('touchstart', move(-1));
 document.getElementById('btn-right').addEventListener('touchstart',move(1));
 document.getElementById('btn-rotate').addEventListener('touchstart', rotatePiece());
 document.getElementById('btn-drop').addEventListener('touchstart', drop());
