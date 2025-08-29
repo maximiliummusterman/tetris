@@ -156,45 +156,33 @@ export default function Tetris() {
     }
   }, [piece, gameOver]);
 
-  // ---- Mobile touch controls ----
-  useEffect(() => {
-    let startX, startY;
+  // ---- Mobile on-screen buttons & hold support ----
+  const holdRefs = useRef({});
 
-    const handleTouchStart = (e) => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-    };
+  const startHold = (action) => {
+    if (gameOver) return;
+    if (action === "left") {
+      move(-1);
+      holdRefs.current.left = setInterval(() => move(-1), 150);
+    }
+    if (action === "right") {
+      move(1);
+      holdRefs.current.right = setInterval(() => move(1), 150);
+    }
+    if (action === "drop") {
+      drop();
+      holdRefs.current.drop = setInterval(() => drop(), 150);
+    }
+  };
 
-    const handleTouchEnd = (e) => {
-      if (gameOver) return;
-      const dx = e.changedTouches[0].clientX - startX;
-      const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (dx > 30) move(1);
-        else if (dx < -30) move(-1);
-      } else {
-        if (dy > 30) drop();
-        else if (dy < -30) rotatePiece();
-      }
-    };
+  const endHold = (action) => {
+    clearInterval(holdRefs.current[action]);
+  };
 
-    window.addEventListener("touchstart", handleTouchStart);
-    window.addEventListener("touchend", handleTouchEnd);
-
-    return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [piece, board, gameOver]);
-
-  // ---- Mobile on-screen buttons ----
   const touchControl = (action) => (e) => {
     e.preventDefault();
-    if (gameOver) return;
-    if (action === "left") move(-1);
-    if (action === "right") move(1);
     if (action === "rotate") rotatePiece();
-    if (action === "drop") drop();
+    else startHold(action);
   };
 
   // ---- Render board ----
@@ -240,6 +228,7 @@ export default function Tetris() {
       <div className="flex gap-4 mt-4">
         <button
           onTouchStart={touchControl("left")}
+          onTouchEnd={() => endHold("left")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ◀️
@@ -252,12 +241,14 @@ export default function Tetris() {
         </button>
         <button
           onTouchStart={touchControl("right")}
+          onTouchEnd={() => endHold("right")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ▶️
         </button>
         <button
           onTouchStart={touchControl("drop")}
+          onTouchEnd={() => endHold("drop")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ⬇️
