@@ -61,7 +61,10 @@ export default function Tetris() {
   const autoDropRef = useRef(null);
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
+
+  // Gesture tracking
   const touchStartRef = useRef({ x: 0, y: 0 });
+  const gestureTriggered = useRef(false);
 
   // Prevent scrolling & calculate block size
   useEffect(() => {
@@ -196,23 +199,30 @@ export default function Tetris() {
     holdRefs.current[dir] = null;
   };
 
-  // Keyboard controls for PC
+  // Keyboard controls
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
       if (e.key === "ArrowLeft") move(-1);
       if (e.key === "ArrowRight") move(1);
-      if (e.key === "ArrowDown") drop();
+      if (e.key === "ArrowDown") setSoftDropping(true);
       if (e.key === "ArrowUp") rotatePiece();
       if (e.key === " ") hardDrop();
     };
+    const handleKeyUp = (e) => {
+      if (e.key === "ArrowDown") setSoftDropping(false);
+    };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
   }, [drop, gameOver]);
 
-  // Touch gesture controls
+  // Touch gesture controls: swipe left/right, tap to rotate
   const handlePointerDown = (e) => {
-    e.preventDefault();
+    gestureTriggered.current = false;
     const touch = e.touches ? e.touches[0] : e;
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
@@ -223,18 +233,15 @@ export default function Tetris() {
     const dy = touch.clientY - touchStartRef.current.y;
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
-    const threshold = 20;
+    const threshold = 10; // for tap
 
-    if (absX < threshold && absY < threshold) {
-      rotatePiece(); // tap
-      return;
-    }
-
-    if (absX > absY) {
-      if (dx > 0) move(1);
-      else move(-1);
-    } else {
-      if (dy > 0) setSoftDropping(true);
+    if (!gestureTriggered.current) {
+      if (absX < threshold && absY < threshold) {
+        rotatePiece(); // tap
+      } else if (absX > absY && absX > threshold) {
+        dx > 0 ? move(1) : move(-1); // swipe left/right 1 square
+      }
+      gestureTriggered.current = true;
     }
   };
 
