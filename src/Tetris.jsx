@@ -138,10 +138,10 @@ export default function Tetris() {
           const merged = merge(prevPiece, prevBoard);
 
           if (prevPiece.y === 0) {
-            // First row collision -> stop interval & game over
+            // Top collision → game over
             clearInterval(autoDropRef.current);
             setGameOver(true);
-            return merged; // keep the last piece visible
+            return merged; // keep the first piece visible
           }
 
           const cleared = clearLines(merged);
@@ -150,8 +150,8 @@ export default function Tetris() {
         return prevBoard;
       });
 
+      // Only spawn next piece if collision happened below top
       if (collided && prevPiece.y > 0) {
-        // Only spawn next piece if not game over
         setPiece(nextPiece);
         setNextPiece(randomPiece());
         return nextPiece;
