@@ -62,6 +62,14 @@ export default function Tetris() {
   const holdRefs = useRef({});
   const [softDropping, setSoftDropping] = useState(false);
 
+  // Non-highlightable style
+  const noHighlightStyle = {
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "none",
+  };
+
   // Prevent scrolling & calculate block size
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -128,6 +136,7 @@ export default function Tetris() {
       if (gameOver) return prevPiece;
       const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
       if (collides(newPiece, board)) {
+        // Only merge and spawn next when landing
         setBoard((prevBoard) => {
           const merged = merge(prevPiece, prevBoard);
           const cleared = clearLines(merged);
@@ -172,7 +181,7 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop with mobile-friendly loop
+  // Soft drop
   useEffect(() => {
     if (!softDropping) return;
     let frame;
@@ -216,17 +225,10 @@ export default function Tetris() {
     })
   );
 
-  const buttonStyle = {
-    userSelect: "none",
-    WebkitUserSelect: "none",
-    WebkitTapHighlightColor: "transparent",
-    touchAction: "none",
-  };
-
   return (
     <div
       className="flex flex-col items-center justify-center text-white bg-gray-900 px-2"
-      style={{ height: "100vh", overflow: "hidden", touchAction: "none" }}
+      style={{ ...noHighlightStyle, height: "100vh", overflow: "hidden" }}
     >
       <h1 className="text-3xl font-bold mb-4 text-center">Tetris</h1>
 
@@ -298,7 +300,7 @@ export default function Tetris() {
             }}
           >
             <button
-              style={buttonStyle}
+              style={noHighlightStyle}
               onPointerDown={() => startHold(-1)}
               onPointerUp={() => stopHold(-1)}
               onPointerLeave={() => stopHold(-1)}
@@ -307,7 +309,7 @@ export default function Tetris() {
               ←
             </button>
             <button
-              style={buttonStyle}
+              style={noHighlightStyle}
               onPointerDown={() => startHold(1)}
               onPointerUp={() => stopHold(1)}
               onPointerLeave={() => stopHold(1)}
@@ -316,14 +318,14 @@ export default function Tetris() {
               →
             </button>
             <button
-              style={buttonStyle}
+              style={noHighlightStyle}
               onPointerDown={rotatePiece}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↺
             </button>
             <button
-              style={buttonStyle}
+              style={noHighlightStyle}
               onPointerDown={(e) => { e.preventDefault(); setSoftDropping(true); }}
               onPointerUp={() => setSoftDropping(false)}
               onPointerLeave={() => setSoftDropping(false)}
