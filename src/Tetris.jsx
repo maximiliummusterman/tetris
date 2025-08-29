@@ -61,7 +61,7 @@ export default function Tetris() {
   const SOFT_DROP_INTERVAL = 50;
   const [blockSize, setBlockSize] = useState(30);
 
-  // Disable page scroll and calculate block size once
+  // Disable scrolling & calculate block size once
   useEffect(() => {
     document.body.style.overflow = "hidden";
 
@@ -144,6 +144,16 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
+  const softDrop = () => {
+    setPiece((prevPiece) => {
+      const newPiece = { ...prevPiece, y: prevPiece.y + 1 };
+      if (!collides(newPiece, board)) {
+        return newPiece;
+      }
+      return prevPiece; // do not merge here
+    });
+  };
+
   const move = (dx) => {
     setPiece((prev) => {
       const newPiece = { ...prev, x: prev.x + dx };
@@ -175,13 +185,13 @@ export default function Tetris() {
       if (gameOver) return;
       if (e.key === "ArrowLeft") move(-1);
       if (e.key === "ArrowRight") move(1);
-      if (e.key === "ArrowDown") drop();
+      if (e.key === "ArrowDown") softDrop();
       if (e.key === "ArrowUp") rotatePiece();
       if (e.key === " ") hardDrop();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [gameOver, drop, board]);
+  }, [gameOver, board]);
 
   useEffect(() => {
     dropInterval.current = setInterval(drop, 600);
@@ -199,8 +209,8 @@ export default function Tetris() {
       holdRefs.current.right = setInterval(() => move(1), 150);
     }
     if (action === "drop") {
-      drop();
-      holdRefs.current.drop = setInterval(() => drop(), SOFT_DROP_INTERVAL);
+      softDrop();
+      holdRefs.current.drop = setInterval(() => softDrop(), SOFT_DROP_INTERVAL);
     }
   };
 
@@ -218,6 +228,13 @@ export default function Tetris() {
         displayBoard[piece.y + dy][piece.x + dx] = piece.type;
     })
   );
+
+  const buttonStyle = {
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900 px-2">
@@ -294,6 +311,7 @@ export default function Tetris() {
       {/* Mobile buttons */}
       <div className="flex gap-2 mt-4 flex-wrap justify-center">
         <button
+          style={buttonStyle}
           onTouchStart={() => startHold("left")}
           onTouchEnd={() => endHold("left")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
@@ -301,12 +319,14 @@ export default function Tetris() {
           ←
         </button>
         <button
+          style={buttonStyle}
           onTouchStart={rotateControl}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ↺
         </button>
         <button
+          style={buttonStyle}
           onTouchStart={() => startHold("right")}
           onTouchEnd={() => endHold("right")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
@@ -314,6 +334,7 @@ export default function Tetris() {
           →
         </button>
         <button
+          style={buttonStyle}
           onTouchStart={() => startHold("drop")}
           onTouchEnd={() => endHold("drop")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
