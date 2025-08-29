@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 10;
 const ROWS = 20;
@@ -34,13 +33,13 @@ const SHAPES = {
 };
 
 const COLORS = {
-  I: "bg-cyan-400",
-  O: "bg-yellow-400",
-  T: "bg-purple-500",
-  S: "bg-green-400",
-  Z: "bg-red-500",
-  J: "bg-blue-500",
-  L: "bg-orange-400",
+  I: "#06b6d4",
+  O: "#facc15",
+  T: "#a855f7",
+  S: "#22c55e",
+  Z: "#ef4444",
+  J: "#3b82f6",
+  L: "#f97316",
 };
 
 function randomPiece() {
@@ -61,6 +60,7 @@ export default function Tetris() {
   const holdRefs = useRef({});
   const SOFT_DROP_INTERVAL = 50;
 
+  // Rotate piece
   const rotate = (p) => {
     const rotated = p.shape[0].map((_, i) =>
       p.shape.map((row) => row[i]).reverse()
@@ -104,22 +104,27 @@ export default function Tetris() {
     return newBoard;
   };
 
-  const drop = () => {
+  const spawnNextPiece = useCallback(() => {
+    setPiece(nextPiece);
+    setNextPiece(randomPiece());
+  }, [nextPiece]);
+
+  const drop = useCallback(() => {
+    if (gameOver) return;
     const newPiece = { ...piece, y: piece.y + 1 };
     if (collides(newPiece)) {
       const merged = merge(piece, board);
       const cleared = clearLines(merged);
       if (piece.y === 0) {
         setGameOver(true);
-        clearInterval(dropInterval.current);
+        return;
       }
       setBoard(cleared);
-      setPiece(nextPiece);
-      setNextPiece(randomPiece());
+      spawnNextPiece();
     } else {
       setPiece(newPiece);
     }
-  };
+  }, [piece, board, gameOver, spawnNextPiece]);
 
   const move = (dx) => {
     const newPiece = { ...piece, x: piece.x + dx };
@@ -137,8 +142,7 @@ export default function Tetris() {
       newPiece.y++;
     }
     setBoard(clearLines(merge(newPiece, board)));
-    setPiece(nextPiece);
-    setNextPiece(randomPiece());
+    spawnNextPiece();
   };
 
   // Keyboard controls
@@ -153,21 +157,17 @@ export default function Tetris() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [piece, board, gameOver]);
+  }, [piece, board, gameOver, drop]);
 
   // Automatic drop
   useEffect(() => {
-    if (!gameOver) {
-      clearInterval(dropInterval.current);
-      dropInterval.current = setInterval(drop, 800);
-      return () => clearInterval(dropInterval.current);
-    }
-  }, [gameOver]);
+    dropInterval.current = setInterval(drop, 800);
+    return () => clearInterval(dropInterval.current);
+  }, [drop]);
 
-  // Mobile buttons & hold
+  // Mobile hold buttons
   const startHold = (action) => {
     if (gameOver) return;
-
     if (action === "left") {
       move(-1);
       holdRefs.current.left = setInterval(() => move(-1), 150);
@@ -191,13 +191,11 @@ export default function Tetris() {
     if (!gameOver) rotatePiece();
   };
 
-  // Render main board
+  // Render
   const displayBoard = board.map((row) => [...row]);
   piece.shape.forEach((r, dy) =>
     r.forEach((c, dx) => {
-      if (c && piece.y + dy >= 0) {
-        displayBoard[piece.y + dy][piece.x + dx] = piece.type;
-      }
+      if (c && piece.y + dy >= 0) displayBoard[piece.y + dy][piece.x + dx] = piece.type;
     })
   );
 
@@ -205,7 +203,7 @@ export default function Tetris() {
     <div className="flex flex-col items-center justify-center min-h-screen text-white bg-gray-900">
       <h1 className="text-3xl font-bold mb-4">Tetris</h1>
 
-      {/* Next piece preview */}
+      {/* Next Piece */}
       <div className="mb-4">
         <p className="text-lg mb-1">Next:</p>
         <div
@@ -223,7 +221,7 @@ export default function Tetris() {
                   width: BLOCK_SIZE,
                   height: BLOCK_SIZE,
                   border: "1px solid #333",
-                  backgroundColor: cell ? COLORS[nextPiece.type].replace("bg-", "") : "#111",
+                  backgroundColor: cell ? COLORS[nextPiece.type] : "#111",
                 }}
               />
             ))
@@ -231,7 +229,7 @@ export default function Tetris() {
         </div>
       </div>
 
-      {/* Main board */}
+      {/* Main Board */}
       <div
         className="grid"
         style={{
@@ -242,13 +240,13 @@ export default function Tetris() {
       >
         {displayBoard.map((row, y) =>
           row.map((cell, x) => (
-            <motion.div
+            <div
               key={`${y}-${x}`}
               style={{
                 width: BLOCK_SIZE,
                 height: BLOCK_SIZE,
                 border: "1px solid #333",
-                backgroundColor: cell ? COLORS[cell].replace("bg-", "") : "#111",
+                backgroundColor: cell ? COLORS[cell] : "#111",
               }}
             />
           ))
@@ -257,15 +255,13 @@ export default function Tetris() {
 
       <p className="mt-4 text-xl">Score: {score}</p>
       {gameOver && (
-        <p className="mt-2 text-red-400 text-lg">
-          Game Over! Refresh to restart.
-        </p>
+        <p className="mt-2 text-red-400 text-lg">Game Over! Refresh to restart.</p>
       )}
 
-      {/* Mobile buttons */}
+      {/* Mobile Buttons */}
       <div className="flex gap-4 mt-4">
         <button
-          onTouchStart={startHold.bind(null, "left")}
+          onTouchStart={() => startHold("left")}
           onTouchEnd={() => endHold("left")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
@@ -278,14 +274,14 @@ export default function Tetris() {
           🔄
         </button>
         <button
-          onTouchStart={startHold.bind(null, "right")}
+          onTouchStart={() => startHold("right")}
           onTouchEnd={() => endHold("right")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
           ▶️
         </button>
         <button
-          onTouchStart={startHold.bind(null, "drop")}
+          onTouchStart={() => startHold("drop")}
           onTouchEnd={() => endHold("drop")}
           className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
         >
