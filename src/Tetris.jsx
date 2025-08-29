@@ -60,7 +60,7 @@ export default function Tetris() {
 
   const autoDropRef = useRef(null);
   const softDropRef = useRef(null);
-  const holdRefs = useRef({}); // left/right intervals
+  const holdRefs = useRef({});
 
   // Prevent scrolling & calculate block size
   useEffect(() => {
@@ -141,7 +141,6 @@ export default function Tetris() {
     });
   }, [board, spawnNextPiece, gameOver]);
 
-  // Automatic drop interval
   useEffect(() => {
     autoDropRef.current = setInterval(drop, 600);
     return () => clearInterval(autoDropRef.current);
@@ -172,7 +171,7 @@ export default function Tetris() {
     });
   };
 
-  // Soft drop interval (50ms) while holding
+  // Soft drop
   const startSoftDrop = () => {
     if (softDropRef.current) return;
     softDropRef.current = setInterval(drop, 50);
@@ -182,7 +181,21 @@ export default function Tetris() {
     softDropRef.current = null;
   };
 
-  // Hold left/right intervals
+  // Ensure soft drop stops on any pointer/touch release
+  useEffect(() => {
+    const handlePointerUp = () => stopSoftDrop();
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("touchend", handlePointerUp);
+    window.addEventListener("touchcancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("touchend", handlePointerUp);
+      window.removeEventListener("touchcancel", handlePointerUp);
+    };
+  }, []);
+
+  // Hold left/right
   const startHold = (dir) => {
     if (holdRefs.current[dir]) return;
     move(dir);
@@ -193,7 +206,6 @@ export default function Tetris() {
     holdRefs.current[dir] = null;
   };
 
-  // Keyboard controls for PC
   useEffect(() => {
     const handleKey = (e) => {
       if (gameOver) return;
@@ -253,9 +265,8 @@ export default function Tetris() {
           )}
         </div>
 
-        {/* Right panel: Next + Buttons */}
+        {/* Right panel */}
         <div className="flex flex-col items-center">
-          {/* Next piece */}
           <p className="text-lg mb-1">Next:</p>
           <div
             className="inline-grid border border-white"
@@ -284,9 +295,10 @@ export default function Tetris() {
               })
             )}
           </div>
+
           <p className="mt-2 text-lg">Score: {score}</p>
 
-          {/* 2x2 Buttons grid */}
+          {/* 2x2 Buttons */}
           <div
             className="grid gap-2 mt-4"
             style={{
@@ -322,9 +334,7 @@ export default function Tetris() {
             </button>
             <button
               style={buttonStyle}
-              onPointerDown={startSoftDrop}
-              onPointerUp={stopSoftDrop}
-              onPointerLeave={stopSoftDrop}
+              onPointerDown={(e) => { e.preventDefault(); startSoftDrop(); }}
               className="px-4 py-2 bg-gray-700 rounded-lg text-white text-xl"
             >
               ↓
